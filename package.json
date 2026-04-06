@@ -1,0 +1,41 @@
+{
+  "name": "bugbounty",
+  "version": "1.0.0",
+  "description": "Secure Bug Bounty System on Hyperledger Besu with RVA Consensus Mechanism",
+  "main": "index.js",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:besu": "hardhat run scripts/deploy.js --network besu",
+    "node": "hardhat node",
+    "coverage": "hardhat coverage",
+    "clean": "hardhat clean"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jumi989/bugBounty.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Jumi989/bugBounty/issues"
+  },
+  "homepage": "https://github.com/Jumi989/bugBounty#readme",
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "@influxdata/influxdb-client": "^1.35.0",
+    "crypto-js": "^4.2.0",
+    "dotenv": "^17.4.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
+    "@chainlink/contracts": "^1.2.0",
+    "@noble/bls12-381": "^1.4.0",
+    "hardhat": "^2.28.0",
+    "ethers": "^6.16.0",
+    "chai": "^4.3.0"
+  }
+}
