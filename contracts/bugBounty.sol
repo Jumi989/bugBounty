@@ -16,6 +16,9 @@ contract BugBounty {
         address tester; // The tester wallet address.
         uint256 reward;
         bytes32 bugHash;
+        string evidenceCID;
+        bytes32 disputeReasonHash;
+        string disputeEvidenceCID;
         Status status;
         uint256 yesVotes;
         uint256 noVotes;
@@ -28,6 +31,50 @@ contract BugBounty {
     mapping(uint256 => mapping(address => bool)) public hasVoted;
 
     address public owner;
+
+    event BountyCreated(
+    uint256 indexed bountyId,
+    address indexed company,
+    uint256 reward
+);
+
+event BugSubmitted(
+    uint256 indexed bountyId,
+    address indexed tester,
+    bytes32 bugHash,
+    string evidenceCID
+);
+
+event BugAccepted(
+    uint256 indexed bountyId,
+    address indexed tester,
+    uint256 reward
+);
+
+event BugRejected(
+    uint256 indexed bountyId,
+    address indexed company
+);
+
+event DisputeOpened(
+    uint256 indexed bountyId,
+    address indexed openedBy,
+    bytes32 reasonHash,
+    string evidenceCID
+);
+
+event VoteCast(
+    uint256 indexed bountyId,
+    address indexed arbitrator,
+    bool supportTester
+);
+
+event DisputeResolved(
+    uint256 indexed bountyId,
+    bool testerWon,
+    uint256 yesVotes,
+    uint256 noVotes
+);
 
     constructor() {
         owner = msg.sender;
@@ -67,13 +114,22 @@ contract BugBounty {
             tester: address(0),
             reward: msg.value,
             bugHash: bytes32(0),
+            evidenceCID: "",
+            disputeReasonHash: bytes32(0),
+            disputeEvidenceCID: "",
             status: Status.Open,
             yesVotes: 0,
             noVotes: 0
         });
+
+        emit BountyCreated(bountyCount, msg.sender, msg.value);   
     }
 
-    function submitBug(uint256 _bountyId, bytes32 _bugHash) external {
+    function submitBug(
+    uint256 _bountyId,
+    bytes32 _bugHash,
+    string calldata _evidenceCID
+    ) external {
         Bounty storage bounty = bounties[_bountyId];
 
         require(bounty.status == Status.Open, "Bounty is not open");
@@ -81,7 +137,9 @@ contract BugBounty {
 
         bounty.tester = msg.sender;
         bounty.bugHash = _bugHash;
+        bounty.evidenceCID = _evidenceCID;
         bounty.status = Status.Submitted;
+        emit BugSubmitted(_bountyId, msg.sender, _bugHash, _evidenceCID);
     }
 
     function acceptBug(uint256 _bountyId) external onlyCompany(_bountyId) {
@@ -90,8 +148,12 @@ contract BugBounty {
         require(bounty.status == Status.Submitted, "Bug not submitted yet");
 
         bounty.status = Status.Accepted;
+        uint256 amount = bounty.reward;
+
 
         payable(bounty.tester).transfer(bounty.reward);
+        bounty.reward = 0;
+        emit BugAccepted(_bountyId, bounty.tester, amount);
     }
 
     function rejectBug(uint256 _bountyId) external onlyCompany(_bountyId) {
@@ -100,14 +162,23 @@ contract BugBounty {
         require(bounty.status == Status.Submitted, "Bug not submitted yet");
 
         bounty.status = Status.Rejected;
+        emit BugRejected(_bountyId, msg.sender);
     }
 
-    function openDispute(uint256 _bountyId) external onlyTester(_bountyId) {
+    function openDispute(
+    uint256 _bountyId,
+    bytes32 _reasonHash,
+    string calldata _evidenceCID
+     ) external onlyTester(_bountyId) {
         Bounty storage bounty = bounties[_bountyId];
 
         require(bounty.status == Status.Rejected, "Bug must be rejected first");
 
         bounty.status = Status.Disputed;
+        bounty.disputeReasonHash = _reasonHash;
+        bounty.disputeEvidenceCID = _evidenceCID;
+
+        emit DisputeOpened(_bountyId, msg.sender, _reasonHash, _evidenceCID);
     }
 
     function vote(uint256 _bountyId, bool _supportTester) external onlyArbitrator {
@@ -123,6 +194,7 @@ contract BugBounty {
         } else {
             bounty.noVotes++;
         }
+        emit VoteCast(_bountyId, msg.sender, _supportTester);
     }
 
     function resolveDispute(uint256 _bountyId) external {
@@ -133,10 +205,15 @@ contract BugBounty {
 
         bounty.status = Status.Resolved;
 
-        if (bounty.yesVotes > bounty.noVotes) {
-            payable(bounty.tester).transfer(bounty.reward);
-        } else {
-            payable(bounty.company).transfer(bounty.reward);
-        }
+        bool testerWon = bounty.yesVotes > bounty.noVotes;
+        uint256 amount = bounty.reward;
+        bounty.reward = 0;
+
+           if (testerWon) {
+             payable(bounty.tester).transfer(amount);
+           } else {
+             payable(bounty.company).transfer(amount);
+           }
+        emit DisputeResolved(_bountyId, testerWon, bounty.yesVotes, bounty.noVotes);
     }
 }

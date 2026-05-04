@@ -2,12 +2,17 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 
 describe("BugBounty", function () {
+   const evidenceCID = "ipfs://example-bug-report-cid";
+   const bugHash = ethers.keccak256(ethers.toUtf8Bytes("bug report 1"));
+  const reasonHash = ethers.keccak256(
+    ethers.toUtf8Bytes("Company unfairly rejected the bug")
+  );
   async function deployBugBounty() {
     const [owner, company, tester, arb1, arb2, arb3] =
       await ethers.getSigners();
 
     const BugBounty = await ethers.getContractFactory("BugBounty");
-    const bugBounty = await BugBounty.deploy();
+    const bugBounty: any = await BugBounty.deploy();
     await bugBounty.waitForDeployment();
 
     return { bugBounty, owner, company, tester, arb1, arb2, arb3 };
@@ -20,9 +25,8 @@ describe("BugBounty", function () {
       value: ethers.parseEther("1"),
     });
 
-    const bugHash = ethers.keccak256(ethers.toUtf8Bytes("bug report 1"));
-
-    await bugBounty.connect(tester).submitBug(1, bugHash);
+    
+    await bugBounty.connect(tester).submitBug(1, bugHash, evidenceCID);
 
     await expect(() =>
       bugBounty.connect(company).acceptBug(1)
@@ -41,11 +45,10 @@ describe("BugBounty", function () {
       value: ethers.parseEther("1"),
     });
 
-    const bugHash = ethers.keccak256(ethers.toUtf8Bytes("serious bug proof"));
 
-    await bugBounty.connect(tester).submitBug(1, bugHash);
+    await bugBounty.connect(tester).submitBug(1, bugHash, evidenceCID);
     await bugBounty.connect(company).rejectBug(1);
-    await bugBounty.connect(tester).openDispute(1);
+    await bugBounty.connect(tester).openDispute(1, reasonHash, evidenceCID);
 
     await bugBounty.connect(arb1).vote(1, true);
     await bugBounty.connect(arb2).vote(1, true);
@@ -63,12 +66,10 @@ describe("BugBounty", function () {
       value: ethers.parseEther("1"),
     });
 
-    const bugHash = ethers.keccak256(ethers.toUtf8Bytes("bug report"));
-
-    await bugBounty.connect(tester).submitBug(1, bugHash);
+    await bugBounty.connect(tester).submitBug(1, bugHash, evidenceCID);
 
     await expect(
-      bugBounty.connect(tester).submitBug(1, bugHash)
+      bugBounty.connect(tester).submitBug(1, bugHash, evidenceCID)
     ).to.be.revertedWith("Bounty is not open");
   });
 
@@ -79,9 +80,8 @@ describe("BugBounty", function () {
       value: ethers.parseEther("1"),
     });
 
-    const bugHash = ethers.keccak256(ethers.toUtf8Bytes("bug report"));
 
-    await bugBounty.connect(tester).submitBug(1, bugHash);
+    await bugBounty.connect(tester).submitBug(1, bugHash, evidenceCID);
 
     await expect(
       bugBounty.connect(arb1).acceptBug(1)
@@ -95,9 +95,8 @@ describe("BugBounty", function () {
       value: ethers.parseEther("1"),
     });
 
-    const bugHash = ethers.keccak256(ethers.toUtf8Bytes("bug report"));
 
-    await bugBounty.connect(tester).submitBug(1, bugHash);
+    await bugBounty.connect(tester).submitBug(1, bugHash, evidenceCID);
 
     await expect(
       bugBounty.connect(arb1).rejectBug(1)
@@ -113,9 +112,9 @@ describe("BugBounty", function () {
 
     const bugHash = ethers.keccak256(ethers.toUtf8Bytes("bug report"));
 
-    await bugBounty.connect(tester).submitBug(1, bugHash);
+    await bugBounty.connect(tester).submitBug(1, bugHash, evidenceCID);
     await bugBounty.connect(company).rejectBug(1);
-    await bugBounty.connect(tester).openDispute(1);
+    await bugBounty.connect(tester).openDispute(1, reasonHash, evidenceCID);
 
     await expect(
       bugBounty.connect(arb1).vote(1, true)
@@ -131,11 +130,10 @@ describe("BugBounty", function () {
       value: ethers.parseEther("1"),
     });
 
-    const bugHash = ethers.keccak256(ethers.toUtf8Bytes("bug report"));
 
-    await bugBounty.connect(tester).submitBug(1, bugHash);
+    await bugBounty.connect(tester).submitBug(1, bugHash, evidenceCID);
     await bugBounty.connect(company).rejectBug(1);
-    await bugBounty.connect(tester).openDispute(1);
+    await bugBounty.connect(tester).openDispute(1, reasonHash, evidenceCID);
 
     await bugBounty.connect(arb1).vote(1, true);
 
@@ -156,11 +154,9 @@ describe("BugBounty", function () {
       value: ethers.parseEther("1"),
     });
 
-    const bugHash = ethers.keccak256(ethers.toUtf8Bytes("weak bug report"));
-
-    await bugBounty.connect(tester).submitBug(1, bugHash);
+    await bugBounty.connect(tester).submitBug(1, bugHash, evidenceCID);
     await bugBounty.connect(company).rejectBug(1);
-    await bugBounty.connect(tester).openDispute(1);
+    await bugBounty.connect(tester).openDispute(1, reasonHash, evidenceCID);
 
     await bugBounty.connect(arb1).vote(1, false);
     await bugBounty.connect(arb2).vote(1, false);
