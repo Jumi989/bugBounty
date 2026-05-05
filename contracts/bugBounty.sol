@@ -2,218 +2,230 @@
 pragma solidity ^0.8.28;
 
 contract BugBounty {
-    enum Status {
-        Open,
-        Submitted,
+    enum SubmissionStatus {
+        Pending,
         Accepted,
-        Rejected,
-        Disputed,
-        Resolved
+        Rejected
     }
 
     struct Bounty {
-        address company; //The company wallet address.
-        address tester; // The tester wallet address.
+        address company;
         uint256 reward;
+        uint256 remainingReward;
+        uint256 deadline;
+        bool closed;
+    }
+
+    struct Submission {
+        uint256 bountyId;
+        address tester;
         bytes32 bugHash;
         string evidenceCID;
-        bytes32 disputeReasonHash;
-        string disputeEvidenceCID;
-        Status status;
-        uint256 yesVotes;
-        uint256 noVotes;
+        SubmissionStatus status;
+        uint256 rewardPaid;
     }
 
     uint256 public bountyCount;
+    uint256 public submissionCount;
 
     mapping(uint256 => Bounty) public bounties;
-    mapping(address => bool) public arbitrators;
-    mapping(uint256 => mapping(address => bool)) public hasVoted;
+    mapping(uint256 => Submission) public submissions;
+    mapping(uint256 => uint256[]) public bountySubmissions;
 
     address public owner;
 
     event BountyCreated(
-    uint256 indexed bountyId,
-    address indexed company,
-    uint256 reward
-);
+        uint256 indexed bountyId,
+        address indexed company,
+        uint256 reward,
+        uint256 deadline
+    );
 
-event BugSubmitted(
-    uint256 indexed bountyId,
-    address indexed tester,
-    bytes32 bugHash,
-    string evidenceCID
-);
+    event BugSubmitted(
+        uint256 indexed bountyId,
+        uint256 indexed submissionId,
+        address indexed tester,
+        bytes32 bugHash,
+        string evidenceCID
+    );
 
-event BugAccepted(
-    uint256 indexed bountyId,
-    address indexed tester,
-    uint256 reward
-);
+    event SubmissionAccepted(
+        uint256 indexed bountyId,
+        uint256 indexed submissionId,
+        address indexed tester,
+        uint256 rewardPaid
+    );
 
-event BugRejected(
-    uint256 indexed bountyId,
-    address indexed company
-);
+    event SubmissionRejected(
+        uint256 indexed bountyId,
+        uint256 indexed submissionId,
+        address indexed tester
+    );
 
-event DisputeOpened(
-    uint256 indexed bountyId,
-    address indexed openedBy,
-    bytes32 reasonHash,
-    string evidenceCID
-);
-
-event VoteCast(
-    uint256 indexed bountyId,
-    address indexed arbitrator,
-    bool supportTester
-);
-
-event DisputeResolved(
-    uint256 indexed bountyId,
-    bool testerWon,
-    uint256 yesVotes,
-    uint256 noVotes
-);
+    event BountyClosed(
+        uint256 indexed bountyId,
+        uint256 refundedAmount
+    );
 
     constructor() {
         owner = msg.sender;
     }
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner can do this");
-        _;
-    }
-
     modifier onlyCompany(uint256 _bountyId) {
-        require(msg.sender == bounties[_bountyId].company, "Only company can do this");
+        require(
+            msg.sender == bounties[_bountyId].company,
+            "Only company can do this"
+        );
         _;
     }
 
-    modifier onlyTester(uint256 _bountyId) {
-        require(msg.sender == bounties[_bountyId].tester, "Only tester can do this");
-        _;
-    }
-
-    modifier onlyArbitrator() {
-        require(arbitrators[msg.sender], "Only arbitrator can do this");
-        _;
-    }
-
-    function addArbitrator(address _arbitrator) external onlyOwner {
-        arbitrators[_arbitrator] = true;
-    }
-
-    function createBounty() external payable {
+    function createBounty(uint256 _durationInSeconds) external payable {
         require(msg.value > 0, "Reward must be greater than 0");
+        require(_durationInSeconds > 0, "Duration must be greater than 0");
 
         bountyCount++;
 
+        uint256 deadline = block.timestamp + _durationInSeconds;
+
         bounties[bountyCount] = Bounty({
             company: msg.sender,
-            tester: address(0),
             reward: msg.value,
-            bugHash: bytes32(0),
-            evidenceCID: "",
-            disputeReasonHash: bytes32(0),
-            disputeEvidenceCID: "",
-            status: Status.Open,
-            yesVotes: 0,
-            noVotes: 0
+            remainingReward: msg.value,
+            deadline: deadline,
+            closed: false
         });
 
-        emit BountyCreated(bountyCount, msg.sender, msg.value);   
+        emit BountyCreated(
+            bountyCount,
+            msg.sender,
+            msg.value,
+            deadline
+        );
     }
 
     function submitBug(
-    uint256 _bountyId,
-    bytes32 _bugHash,
-    string calldata _evidenceCID
+        uint256 _bountyId,
+        bytes32 _bugHash,
+        string calldata _evidenceCID
     ) external {
         Bounty storage bounty = bounties[_bountyId];
 
-        require(bounty.status == Status.Open, "Bounty is not open");
+        require(bounty.company != address(0), "Bounty does not exist");
+        require(!bounty.closed, "Bounty is closed");
+        require(block.timestamp <= bounty.deadline, "Deadline passed");
         require(_bugHash != bytes32(0), "Invalid bug hash");
 
-        bounty.tester = msg.sender;
-        bounty.bugHash = _bugHash;
-        bounty.evidenceCID = _evidenceCID;
-        bounty.status = Status.Submitted;
-        emit BugSubmitted(_bountyId, msg.sender, _bugHash, _evidenceCID);
+        submissionCount++;
+
+        submissions[submissionCount] = Submission({
+            bountyId: _bountyId,
+            tester: msg.sender,
+            bugHash: _bugHash,
+            evidenceCID: _evidenceCID,
+            status: SubmissionStatus.Pending,
+            rewardPaid: 0
+        });
+
+        bountySubmissions[_bountyId].push(submissionCount);
+
+        emit BugSubmitted(
+            _bountyId,
+            submissionCount,
+            msg.sender,
+            _bugHash,
+            _evidenceCID
+        );
     }
 
-    function acceptBug(uint256 _bountyId) external onlyCompany(_bountyId) {
+    function acceptSubmission(
+        uint256 _bountyId,
+        uint256 _submissionId,
+        uint256 _rewardAmount
+    ) external onlyCompany(_bountyId) {
         Bounty storage bounty = bounties[_bountyId];
+        Submission storage submission = submissions[_submissionId];
 
-        require(bounty.status == Status.Submitted, "Bug not submitted yet");
+        require(bounty.company != address(0), "Bounty does not exist");
+        require(!bounty.closed, "Bounty is closed");
+        require(block.timestamp > bounty.deadline, "Deadline not passed yet");
+        require(
+            submission.bountyId == _bountyId,
+            "Submission does not belong to bounty"
+        );
+        require(
+            submission.status == SubmissionStatus.Pending,
+            "Submission already reviewed"
+        );
+        require(_rewardAmount > 0, "Reward must be greater than 0");
+        require(
+            _rewardAmount <= bounty.remainingReward,
+            "Not enough remaining reward"
+        );
 
-        bounty.status = Status.Accepted;
-        uint256 amount = bounty.reward;
+        submission.status = SubmissionStatus.Accepted;
+        submission.rewardPaid = _rewardAmount;
+        bounty.remainingReward -= _rewardAmount;
 
+        payable(submission.tester).transfer(_rewardAmount);
 
-        payable(bounty.tester).transfer(bounty.reward);
-        bounty.reward = 0;
-        emit BugAccepted(_bountyId, bounty.tester, amount);
+        emit SubmissionAccepted(
+            _bountyId,
+            _submissionId,
+            submission.tester,
+            _rewardAmount
+        );
     }
 
-    function rejectBug(uint256 _bountyId) external onlyCompany(_bountyId) {
+    function rejectSubmission(
+        uint256 _bountyId,
+        uint256 _submissionId
+    ) external onlyCompany(_bountyId) {
         Bounty storage bounty = bounties[_bountyId];
+        Submission storage submission = submissions[_submissionId];
 
-        require(bounty.status == Status.Submitted, "Bug not submitted yet");
+        require(bounty.company != address(0), "Bounty does not exist");
+        require(!bounty.closed, "Bounty is closed");
+        require(block.timestamp > bounty.deadline, "Deadline not passed yet");
+        require(
+            submission.bountyId == _bountyId,
+            "Submission does not belong to bounty"
+        );
+        require(
+            submission.status == SubmissionStatus.Pending,
+            "Submission already reviewed"
+        );
 
-        bounty.status = Status.Rejected;
-        emit BugRejected(_bountyId, msg.sender);
+        submission.status = SubmissionStatus.Rejected;
+
+        emit SubmissionRejected(
+            _bountyId,
+            _submissionId,
+            submission.tester
+        );
     }
 
-    function openDispute(
-    uint256 _bountyId,
-    bytes32 _reasonHash,
-    string calldata _evidenceCID
-     ) external onlyTester(_bountyId) {
+    function closeBounty(uint256 _bountyId) external onlyCompany(_bountyId) {
         Bounty storage bounty = bounties[_bountyId];
 
-        require(bounty.status == Status.Rejected, "Bug must be rejected first");
+        require(bounty.company != address(0), "Bounty does not exist");
+        require(!bounty.closed, "Bounty already closed");
+        require(block.timestamp > bounty.deadline, "Deadline not passed yet");
 
-        bounty.status = Status.Disputed;
-        bounty.disputeReasonHash = _reasonHash;
-        bounty.disputeEvidenceCID = _evidenceCID;
+        bounty.closed = true;
 
-        emit DisputeOpened(_bountyId, msg.sender, _reasonHash, _evidenceCID);
-    }
+        uint256 refundAmount = bounty.remainingReward;
+        bounty.remainingReward = 0;
 
-    function vote(uint256 _bountyId, bool _supportTester) external onlyArbitrator {
-        Bounty storage bounty = bounties[_bountyId];
-
-        require(bounty.status == Status.Disputed, "Bounty is not disputed");
-        require(!hasVoted[_bountyId][msg.sender], "Already voted");
-
-        hasVoted[_bountyId][msg.sender] = true;
-
-        if (_supportTester) {
-            bounty.yesVotes++;
-        } else {
-            bounty.noVotes++;
+        if (refundAmount > 0) {
+            payable(bounty.company).transfer(refundAmount);
         }
-        emit VoteCast(_bountyId, msg.sender, _supportTester);
+
+        emit BountyClosed(_bountyId, refundAmount);
     }
 
-    function resolveDispute(uint256 _bountyId) external {
-        Bounty storage bounty = bounties[_bountyId];
-
-        require(bounty.status == Status.Disputed, "Bounty is not disputed");
-        require(bounty.yesVotes + bounty.noVotes >= 3, "Need at least 3 votes");
-
-        bounty.status = Status.Resolved;
-
-        bool testerWon = bounty.yesVotes > bounty.noVotes;
-        uint256 amount = bounty.reward;
-        bounty.reward = 0;
-
-           if (testerWon) {
-             payable(bounty.tester).transfer(amount);
-           } else {
-             payable(bounty.company).transfer(amount);
-           }
-        emit DisputeResolved(_bountyId, testerWon, bounty.yesVotes, bounty.noVotes);
+    function getBountySubmissions(
+        uint256 _bountyId
+    ) external view returns (uint256[] memory) {
+        return bountySubmissions[_bountyId];
     }
 }
