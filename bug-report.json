@@ -1,0 +1,11 @@
+{
+  "title": "SQL Injection in Login Page",
+  "bugType": "SQL Injection",
+  "description": "The login form is vulnerable to SQL injection.",
+  "steps": [
+    "Open login page",
+    "Enter payload in username field",
+    "Observe database error"
+  ],
+  "severity": "High"
+}
