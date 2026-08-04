@@ -1,35 +1,85 @@
+import "dotenv/config";
 import { ethers } from "hardhat";
 
-async function main() {
+async function main(): Promise<void> {
+  /*
+   * Read the registry address from .env.
+   */
   const registryAddress =
-    "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+    process.env.PARTICIPANT_REGISTRY_ADDRESS;
 
-  // Account #0 is the ParticipantRegistry owner.
-  // Account #1 will represent a software company.
-  // Account #2 will represent a security tester.
+  if (!registryAddress) {
+    throw new Error(
+      "PARTICIPANT_REGISTRY_ADDRESS is missing from .env"
+    );
+  }
+
+  /*
+   * Check whether the value is a valid Ethereum address.
+   */
+  if (!ethers.isAddress(registryAddress)) {
+    throw new Error(
+      "PARTICIPANT_REGISTRY_ADDRESS is not a valid address"
+    );
+  }
+
+  /*
+   * Confirm that deployed contract bytecode exists there.
+   */
+  const contractCode =
+    await ethers.provider.getCode(registryAddress);
+
+  if (contractCode === "0x") {
+    throw new Error(
+      `No contract is deployed at ${registryAddress}`
+    );
+  }
+
+  /*
+   * Account #0 = registry owner
+   * Account #1 = company
+   * Account #2 = tester
+   */
   const [owner, company, tester] =
     await ethers.getSigners();
 
+  console.log("Registry address:", registryAddress);
   console.log("Registry owner:", owner.address);
   console.log("Company account:", company.address);
   console.log("Tester account:", tester.address);
 
-  // Connects to the already-deployed registry.
+  /*
+   * Connect to the deployed registry using the owner signer.
+   */
   const registry = await ethers.getContractAt(
     "ParticipantRegistry",
     registryAddress,
     owner
   );
 
-  // Creates fixed bytes32 organization identifiers.
-  const companyOrganizationId = ethers.id(
-    "SOFTWARE_COMPANY_A"
-  );
+  /*
+   * Confirm that Account #0 really owns this contract.
+   */
+  const contractOwner = await registry.owner();
 
-  const testerOrganizationId = ethers.id(
-    "INDEPENDENT_TESTER_A"
-  );
+  if (
+    contractOwner.toLowerCase() !==
+    owner.address.toLowerCase()
+  ) {
+    throw new Error(
+      "The selected signer is not the registry owner"
+    );
+  }
 
+  const companyOrganizationId =
+    ethers.id("SOFTWARE_COMPANY_A");
+
+  const testerOrganizationId =
+    ethers.id("INDEPENDENT_TESTER_A");
+
+  /*
+   * Register the company.
+   */
   console.log("Registering company...");
 
   const companyTransaction =
@@ -42,6 +92,9 @@ async function main() {
 
   console.log("Company registered successfully.");
 
+  /*
+   * Register the tester.
+   */
   console.log("Registering tester...");
 
   const testerTransaction =
@@ -54,12 +107,18 @@ async function main() {
 
   console.log("Tester registered successfully.");
 
-  // Verify both registrations.
+  /*
+   * Verify the stored blockchain state.
+   */
   const companyIsActive =
-    await registry.isActiveCompany(company.address);
+    await registry.isActiveCompany(
+      company.address
+    );
 
   const testerIsActive =
-    await registry.isActiveTester(tester.address);
+    await registry.isActiveTester(
+      tester.address
+    );
 
   const totalParticipants =
     await registry.totalParticipants();
@@ -72,7 +131,12 @@ async function main() {
   );
 }
 
-main().catch((error) => {
-  console.error("Registration failed:", error);
+main().catch((error: unknown) => {
+  const message =
+    error instanceof Error
+      ? error.message
+      : String(error);
+
+  console.error("Registration failed:", message);
   process.exitCode = 1;
 });

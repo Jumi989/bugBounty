@@ -1,9 +1,16 @@
+import "dotenv/config";
 import { ethers } from "hardhat";
 
 async function main() {
   // ParticipantRegistry address deployed on the current localhost network.
-  const registryAddress =
-    "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+const registryAddress =
+  process.env.PARTICIPANT_REGISTRY_ADDRESS;
+
+if (!registryAddress) {
+  throw new Error(
+    "PARTICIPANT_REGISTRY_ADDRESS is missing from .env"
+  );
+}
 
   // Gets the first Hardhat account.
   const [deployer] = await ethers.getSigners();
