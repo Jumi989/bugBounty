@@ -1,69 +1,408 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+
+type ConnectionStatus =
+  | "idle"
+  | "connecting"
+  | "connected";
+
+function shortenAddress(address: string): string {
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+function getNetworkName(chainId: string): string {
+  const networks: Record<string, string> = {
+    "0x7a69": "Hardhat Local Network",
+    "0x1": "Ethereum Mainnet",
+    "0xaa36a7": "Sepolia Testnet",
+  };
+
+  return networks[chainId] ?? `Chain ${chainId}`;
+}
 
 export default function Home() {
+  const [walletAddress, setWalletAddress] =
+    useState<string>("");
+
+  const [networkName, setNetworkName] =
+    useState<string>("");
+
+  const [connectionStatus, setConnectionStatus] =
+    useState<ConnectionStatus>("idle");
+
+  const [errorMessage, setErrorMessage] =
+    useState<string>("");
+
+  const walletConnected =
+    connectionStatus === "connected";
+
+  async function connectWallet(): Promise<void> {
+    setErrorMessage("");
+
+    if (!window.ethereum) {
+      setErrorMessage(
+        "MetaMask was not detected. Install MetaMask and refresh the page."
+      );
+
+      return;
+    }
+
+    try {
+      setConnectionStatus("connecting");
+
+      const accounts =
+        (await window.ethereum.request({
+          method: "eth_requestAccounts",
+        })) as string[];
+
+      if (!accounts || accounts.length === 0) {
+        throw new Error(
+          "MetaMask did not return a wallet account."
+        );
+      }
+
+      const chainId =
+        (await window.ethereum.request({
+          method: "eth_chainId",
+        })) as string;
+
+      setWalletAddress(accounts[0]);
+      setNetworkName(getNetworkName(chainId));
+      setConnectionStatus("connected");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "The wallet connection failed.";
+
+      setErrorMessage(message);
+      setConnectionStatus("idle");
+    }
+  }
+
+  function scrollToPortal(): void {
+    document
+      .getElementById("company-access")
+      ?.scrollIntoView({
+        behavior: "smooth",
+      });
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="website">
+      <header className="site-header">
+        <a href="#" className="wordmark">
+          <span className="wordmark-mark">BB</span>
+
+          <span>
+            BUG BOUNTY
+            <small>SECURITY JOURNAL</small>
+          </span>
+        </a>
+
+        <nav className="desktop-navigation">
+          <a href="#company-access">Company access</a>
+          <a href="#process">How it works</a>
+          <a href="#technology">Technology</a>
+        </nav>
+
+        <button
+          type="button"
+          className="header-button"
+          onClick={scrollToPortal}
+        >
+          Enter portal
+        </button>
+      </header>
+
+      <section className="hero-section">
+        <div className="hero-grid" />
+
+        <div className="hero-orbit hero-orbit-one" />
+        <div className="hero-orbit hero-orbit-two" />
+
+        <div className="hero-content">
+          <p className="hero-kicker">
+            A PRIVATE SECURITY MARKETPLACE
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+          <h1>
+            Trusted reports.
+            <span>Transparent rewards.</span>
+          </h1>
+
+          <p className="hero-description">
+            A secure meeting place for verified
+            companies and professional security
+            researchers.
+          </p>
+
+          <button
+            type="button"
+            className="hero-link"
+            onClick={scrollToPortal}
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
+            <span>Company sign in</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </div>
+
+        <div className="hero-caption">
+          <span>POSTGRESQL VERIFICATION</span>
+          <span>EIP-712 AUTHORIZATION</span>
+          <span>BLOCKCHAIN ESCROW</span>
+        </div>
+      </section>
+
+      <section
+        className="company-section"
+        id="company-access"
+      >
+        <div className="editorial-introduction">
+          <p className="section-number">01</p>
+
+          <p className="small-heading">
+            WELCOME TO THE COMPANY PORTAL
+          </p>
+
+          <h2>
+            Create trustworthy
+            <br />
+            security programs.
+          </h2>
+
+          <p className="intro-description">
+            Connect the wallet associated with your
+            verified company account. Your participant
+            profile remains in PostgreSQL, while
+            critical bounty and payment actions are
+            protected through the blockchain escrow
+            contract.
+          </p>
+
+          <div className="editorial-note">
+            <span className="note-line" />
+
+            <p>
+              Connecting a wallet does not create a
+              blockchain transaction and does not cost
+              gas.
+            </p>
+          </div>
+        </div>
+
+        <article className="wallet-card">
+          <div className="wallet-card-header">
+            <div>
+              <p className="small-heading">
+                COMPANY ACCESS
+              </p>
+
+              <h3>Verify your wallet</h3>
+            </div>
+
+            <span className="card-number">01 / 03</span>
+          </div>
+
+          <div className="wallet-status">
+            <div className="wallet-emblem">
+              <span>W</span>
+            </div>
+
+            <div className="wallet-information">
+              <span className="wallet-label">
+                CONNECTED WALLET
+              </span>
+
+              <strong>
+                {walletConnected
+                  ? shortenAddress(walletAddress)
+                  : "No wallet connected"}
+              </strong>
+
+              <p>
+                {walletConnected
+                  ? networkName
+                  : "MetaMask connection required"}
+              </p>
+            </div>
+
+            <span
+              className={
+                walletConnected
+                  ? "connection-light active"
+                  : "connection-light"
+              }
+              aria-label={
+                walletConnected
+                  ? "Wallet connected"
+                  : "Wallet disconnected"
+              }
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </div>
+
+          <button
+            type="button"
+            className="connect-button"
+            onClick={connectWallet}
+            disabled={
+              connectionStatus === "connecting" ||
+              walletConnected
+            }
           >
-            Documentation
-          </a>
+            {connectionStatus === "connecting"
+              ? "Connecting wallet..."
+              : walletConnected
+                ? "Wallet connected"
+                : "Connect MetaMask"}
+          </button>
+
+          <div
+            className="message-area"
+            aria-live="polite"
+          >
+            {errorMessage && (
+              <div className="error-message">
+                <strong>Connection failed</strong>
+                <p>{errorMessage}</p>
+              </div>
+            )}
+
+            {walletConnected && (
+              <div className="success-message">
+                <span className="success-symbol">
+                  ✓
+                </span>
+
+                <div>
+                  <strong>
+                    Wallet connection successful
+                  </strong>
+
+                  <p>
+                    Next, you will sign a login
+                    challenge to prove ownership of
+                    this wallet.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="card-footer">
+            <span>SECURE WALLET AUTHENTICATION</span>
+            <span>NO GAS REQUIRED</span>
+          </div>
+        </article>
+      </section>
+
+      <section
+        className="technology-strip"
+        id="technology"
+      >
+        <p>BUILT WITH</p>
+
+        <div className="technology-list">
+          <span>POSTGRESQL</span>
+          <span>REACT</span>
+          <span>NEXT.JS</span>
+          <span>ETHERS.JS</span>
+          <span>HARDHAT</span>
+          <span>EIP-712</span>
         </div>
-      </main>
-    </div>
+      </section>
+
+      <section
+        className="process-section"
+        id="process"
+      >
+        <div className="process-heading">
+          <p className="section-number">02</p>
+
+          <p className="small-heading">
+            THE COMPANY WORKFLOW
+          </p>
+
+          <h2>
+            From verification
+            <br />
+            to secured reward.
+          </h2>
+        </div>
+
+        <div className="process-grid">
+          <article className="process-card">
+            <span className="process-number">01</span>
+            <h3>Connect and verify</h3>
+
+            <p>
+              Prove ownership of the wallet connected
+              to your verified PostgreSQL company
+              profile.
+            </p>
+          </article>
+
+          <article className="process-card">
+            <span className="process-number">02</span>
+            <h3>Create a bounty</h3>
+
+            <p>
+              Define the security scope, reward,
+              reporting period and program
+              requirements.
+            </p>
+          </article>
+
+          <article className="process-card">
+            <span className="process-number">03</span>
+            <h3>Secure the reward</h3>
+
+            <p>
+              Deposit the bounty reward into the
+              blockchain escrow contract for
+              transparent settlement.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="closing-section">
+        <p className="small-heading">
+          RESPONSIBLE DISCLOSURE
+        </p>
+
+        <h2>
+          Better security begins
+          <br />
+          with trusted collaboration.
+        </h2>
+
+        <button
+          type="button"
+          onClick={scrollToPortal}
+        >
+          Access the company portal
+        </button>
+      </section>
+
+      <footer className="site-footer">
+        <div className="footer-brand">
+          <span className="wordmark-mark">BB</span>
+
+          <div>
+            <strong>BUG BOUNTY</strong>
+            <p>SECURITY JOURNAL</p>
+          </div>
+        </div>
+
+        <p>
+          PostgreSQL participant verification.
+          Blockchain-secured bounty operations.
+        </p>
+
+        <span>LOCAL DEVELOPMENT BUILD</span>
+      </footer>
+    </main>
   );
 }
