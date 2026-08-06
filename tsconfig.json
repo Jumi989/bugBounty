@@ -10,5 +10,5 @@
     "rootDir": ".",
     "types": ["node"]
   },
-  "include": ["./scripts", "./test", "./hardhat.config.ts"]
+  "include": ["./scripts", "./test", "./hardhat.config.ts", "archive/registerParticipants.ts", "archive/deployParticipantRegistry.ts", "archive/syncParticipants.ts", "archive/ParticipantRegistry.test.ts", "archive/acceptSubmission.ts", "archive/checkBlocks.ts", "archive/createBounty.ts", "archive/saveReportToDb.ts", "archive/submitBug.ts", "archive/testDatabaseConnection.ts", "archive/uploadEvidence.ts", "archive/withdrawReward.ts", "archive/deployBugBountyEscrowOLD.ts", "archive/applyMigration.ts", "archive/BugBountyEscrow.test.ts"]
 }
