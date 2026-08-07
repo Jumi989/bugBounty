@@ -109,7 +109,7 @@ export async function POST(
         {
           success: false,
           message:
-            "No participant profile was found for this wallet.",
+            "Company wallet not found. Please register your company account first.",
         },
         {
           status: 404,

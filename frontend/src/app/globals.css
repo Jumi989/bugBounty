@@ -835,3 +835,75 @@ a {
     font-size: 47px;
   }
 }
+.signin-button {
+  width: 100%;
+  margin-top: 11px;
+  padding: 16px;
+  border: 1px solid var(--sage-dark);
+  background: var(--sage);
+  color: #282725;
+
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.signin-button:hover:not(:disabled) {
+  background: var(--sage-dark);
+  color: white;
+}
+
+.signin-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.authenticated-message {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 12px;
+
+  padding: 18px;
+
+  border: 1px solid
+    rgba(120, 130, 101, 0.45);
+
+  background: #e2e7d8;
+  color: #45503b;
+}
+
+.authenticated-message strong {
+  display: block;
+  margin-top: 5px;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: 17px;
+}
+
+.authenticated-message p {
+  margin: 6px 0 0;
+
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.authenticated-label {
+  display: block;
+
+  font-family: Arial, sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+
+  color: var(--sage-dark);
+}
