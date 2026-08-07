@@ -104,18 +104,19 @@ export async function POST(
         [walletAddress]
       );
 
-    if (participantResult.rowCount !== 1) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Company wallet not found. Please register your company account first.",
-        },
-        {
-          status: 404,
-        }
-      );
+   if (participantResult.rowCount !== 1) {
+  return NextResponse.json(
+    {
+      success: false,
+      code: "COMPANY_NOT_REGISTERED",
+      message:
+        "Company wallet not found. Please register your company account first.",
+    },
+    {
+      status: 404,
     }
+  );
+}
 
     const participant =
       participantResult.rows[0];

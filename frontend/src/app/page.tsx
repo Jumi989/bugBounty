@@ -1,5 +1,5 @@
 "use client";
-
+import Link from "next/link";
 import { useState } from "react";
 type ConnectionStatus =
   | "idle"
@@ -15,6 +15,7 @@ type LoginStatus =
 
 type ChallengeResponse = {
   success: boolean;
+  code?: string;
   message?: string;
 
   challenge?: {
@@ -73,6 +74,9 @@ export default function Home() {
 
   const [loginStatus, setLoginStatus] =
   useState<LoginStatus>("idle");
+  
+  const [authErrorCode, setAuthErrorCode] =
+  useState<string>("");
 
 const [companyName, setCompanyName] =
   useState<string>("");
@@ -125,6 +129,7 @@ const isAuthenticated =
 
   async function signInWithWallet(): Promise<void> {
   setErrorMessage("");
+  setAuthErrorCode("");
 
   if (!window.ethereum) {
     setErrorMessage(
@@ -168,15 +173,23 @@ const isAuthenticated =
         ChallengeResponse;
 
     if (
-      !challengeResponse.ok ||
-      !challengeData.success ||
-      !challengeData.challenge
-    ) {
-      throw new Error(
-        challengeData.message ??
-          "Could not create login challenge."
-      );
-    }
+  !challengeResponse.ok ||
+  !challengeData.success ||
+  !challengeData.challenge
+) {
+  setAuthErrorCode(
+    challengeData.code ?? ""
+  );
+
+  setErrorMessage(
+    challengeData.message ??
+      "Could not create login challenge."
+  );
+
+  setLoginStatus("idle");
+
+  return;
+}
 
     /*
      * STEP 2
@@ -305,7 +318,7 @@ function getLoginButtonText(): string {
   }
   async function switchWallet(): Promise<void> {
   setErrorMessage("");
-
+  setAuthErrorCode("");
   if (!window.ethereum) {
     setErrorMessage(
       "MetaMask was not detected."
@@ -573,11 +586,22 @@ function getLoginButtonText(): string {
             aria-live="polite"
           >
             {errorMessage && (
-              <div className="error-message">
-                <strong>Connection failed</strong>
-                <p>{errorMessage}</p>
-              </div>
-            )}
+  <div className="error-message">
+    <strong>Connection failed</strong>
+
+    <p>{errorMessage}</p>
+
+    {authErrorCode ===
+      "COMPANY_NOT_REGISTERED" && (
+      <Link
+        href="/company/register"
+        className="register-company-link"
+      >
+        Register company
+      </Link>
+    )}
+  </div>
+)}
 
             {walletConnected && !isAuthenticated && (
   <div className="success-message">
