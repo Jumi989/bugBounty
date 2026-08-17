@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 type ConnectionStatus =
   | "idle"
   | "connecting"
@@ -39,6 +39,24 @@ type VerifyResponse = {
     walletAddress: string;
     role: string;
     displayName: string;
+  };
+};
+
+type SessionResponse = {
+  success: boolean;
+  authenticated: boolean;
+  message?: string;
+
+  participant?: {
+    id: string;
+    walletAddress: string;
+    role: string;
+    organizationId: string;
+    companyName: string | null;
+    displayName: string | null;
+    email: string | null;
+    active: boolean;
+    verified: boolean;
   };
 };
 
@@ -83,6 +101,143 @@ const [companyName, setCompanyName] =
 
 const isAuthenticated =
   loginStatus === "authenticated";
+
+  useEffect(() => {
+  let cancelled = false;
+
+  async function restoreSession(): Promise<void> {
+    try {
+      /*
+       * Ask the backend whether this browser
+       * already has a valid HTTP-only session.
+       */
+      const response =
+        await fetch("/api/auth/me", {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
+
+      const data =
+        (await response.json()) as SessionResponse;
+
+      /*
+       * No valid session is normal for a user
+       * who has not signed in yet.
+       *
+       * So we simply stop here instead of
+       * showing an error.
+       */
+      if (
+        cancelled ||
+        !response.ok ||
+        !data.success ||
+        !data.authenticated ||
+        !data.participant
+      ) {
+        return;
+      }
+
+      const sessionWallet =
+        data.participant.walletAddress;
+
+      /*
+       * Check which MetaMask account is currently
+       * selected without opening a MetaMask popup.
+       */
+      if (window.ethereum) {
+        const accounts =
+          (await window.ethereum.request({
+            method: "eth_accounts",
+          })) as string[];
+
+        if (cancelled) {
+          return;
+        }
+
+        if (accounts.length > 0) {
+          const currentWallet =
+            accounts[0];
+
+          const chainId =
+            (await window.ethereum.request({
+              method: "eth_chainId",
+            })) as string;
+
+          /*
+           * Display the actual wallet currently
+           * selected in MetaMask.
+           */
+          setWalletAddress(currentWallet);
+
+          setNetworkName(
+            getNetworkName(chainId)
+          );
+
+          setConnectionStatus(
+            "connected"
+          );
+
+          /*
+           * Important security/usability check:
+           *
+           * The saved session belongs to one wallet.
+           * Do not show it as authenticated when
+           * MetaMask is currently using another wallet.
+           */
+          if (
+            currentWallet.toLowerCase() !==
+            sessionWallet.toLowerCase()
+          ) {
+            setLoginStatus("idle");
+            setCompanyName("");
+
+            setErrorMessage(
+              "Your saved company session belongs to another wallet. Switch MetaMask to the company wallet or sign in with the currently selected wallet."
+            );
+
+            return;
+          }
+        }
+      }
+
+      /*
+       * Session is valid.
+       * Restore the authenticated React UI.
+       */
+      setCompanyName(
+        data.participant.companyName ??
+          data.participant.displayName ??
+          "Verified Company"
+      );
+
+      setErrorMessage("");
+      setAuthErrorCode("");
+
+      setLoginStatus(
+        "authenticated"
+      );
+    } catch (error) {
+      /*
+       * Do not show a scary error during normal
+       * page loading if session restoration fails.
+       *
+       * The user can still connect/sign in manually.
+       */
+      console.error(
+        "Could not restore company session:",
+        error
+      );
+    }
+  }
+
+  void restoreSession();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
+
   async function connectWallet(): Promise<void> {
     setErrorMessage("");
 
@@ -329,7 +484,19 @@ function getLoginButtonText(): string {
 
   try {
     setConnectionStatus("connecting");
+    if (isAuthenticated) {
+  await fetch(
+    "/api/auth/logout",
+    {
+      method: "POST",
+      credentials: "include",
+    }
+  );
 
+  setLoginStatus("idle");
+  setCompanyName("");
+  setAuthErrorCode("");
+}
     /*
      * Ask MetaMask to show account permissions again.
      * This lets the user choose another account.
@@ -394,6 +561,46 @@ function getLoginButtonText(): string {
     setConnectionStatus("connected");
   }
 }
+
+async function logout():
+Promise<void> {
+  setErrorMessage("");
+
+  try {
+    const response =
+      await fetch(
+        "/api/auth/logout",
+        {
+          method: "POST",
+          credentials: "include",
+        }
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        "Could not sign out."
+      );
+    }
+
+    /*
+     * Server session is now gone.
+     *
+     * Clear only our authentication state.
+     * The MetaMask wallet remains connected.
+     */
+    setLoginStatus("idle");
+    setCompanyName("");
+    setAuthErrorCode("");
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Sign out failed.";
+
+    setErrorMessage(message);
+  }
+}
+
   return (
     <main className="website">
       <header className="site-header">
@@ -621,26 +828,39 @@ function getLoginButtonText(): string {
     </div>
   </div>
 )}
-{isAuthenticated && (
-  <div className="authenticated-message">
-    <span className="success-symbol">
-      ✓
-    </span>
 
-    <div>
-      <span className="authenticated-label">
-        AUTHENTICATED COMPANY
+{isAuthenticated && (
+  <>
+    <div className="authenticated-message">
+      <span className="success-symbol">
+        ✓
       </span>
 
-      <strong>{companyName}</strong>
+      <div>
+        <span className="authenticated-label">
+          AUTHENTICATED COMPANY
+        </span>
 
-      <p>
-        Your wallet ownership and company
-        authorization were successfully
-        verified.
-      </p>
+        <strong>
+          {companyName}
+        </strong>
+
+        <p>
+          Your wallet ownership and company
+          authorization were successfully
+          verified.
+        </p>
+      </div>
     </div>
-  </div>
+
+    <button
+      type="button"
+      className="logout-button"
+      onClick={logout}
+    >
+      Log out
+    </button>
+  </>
 )}
           </div>
 
