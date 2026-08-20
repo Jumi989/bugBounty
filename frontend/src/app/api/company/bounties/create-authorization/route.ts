@@ -913,29 +913,28 @@ console.log(
       authorizationDigest,
     });
   } catch (error: unknown) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Unknown server error";
+  console.error(
+    "CREATE BOUNTY AUTHORIZATION ERROR:",
+    error
+  );
 
-    console.error(
-      "Create bounty authorization failed:",
-      message
-    );
+  const errorMessage =
+    error instanceof Error
+      ? error.message
+      : String(error);
 
-    return NextResponse.json(
-      {
-        success: false,
-
-        code:
-          "CREATE_BOUNTY_AUTHORIZATION_FAILED",
-
-        message:
-          "The bounty authorization could not be created.",
-      },
-      {
-        status: 500,
-      }
-    );
-  }
+  return NextResponse.json(
+    {
+      success: false,
+      message:
+        process.env.NODE_ENV ===
+        "development"
+          ? errorMessage
+          : "The bounty authorization could not be created.",
+    },
+    {
+      status: 500,
+    }
+  );
+}
 }

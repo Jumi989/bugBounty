@@ -1,12 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { ethers } from "ethers";
 import { useRouter } from "next/navigation";
 import {
   FormEvent,
   useEffect,
   useState,
 } from "react";
+
+const ESCROW_ABI = [
+  "function createBounty(bytes32 metadataHash,string metadataCID,uint64 startTime,uint64 endTime,(address user,uint8 role,bytes32 organizationId,uint8 action,bytes32 actionHash,uint256 nonce,uint256 deadline) authorization,bytes signature) payable returns (uint256 bountyId)",
+];
 
 type SessionResponse = {
   success: boolean;
@@ -95,6 +100,14 @@ export default function CreateBountyPage() {
     useState<AuthorizationResponse | null>(
       null
     );
+  const [transactionPending, setTransactionPending] =
+  useState(false);
+
+const [transactionHash, setTransactionHash] =
+  useState("");
+
+const [transactionConfirmed, setTransactionConfirmed] =
+  useState(false);
 
   /*
    * Protect the page with the existing
@@ -300,6 +313,183 @@ body: JSON.stringify({
       setSubmitting(false);
     }
   }
+
+    async function sendBountyTransaction(): Promise<void> {
+  setErrorMessage("");
+  setTransactionHash("");
+  setTransactionConfirmed(false);
+
+  if (!window.ethereum) {
+    setErrorMessage(
+      "MetaMask was not detected."
+    );
+
+    return;
+  }
+
+  if (
+    !authorization?.success ||
+    !authorization.contract ||
+    !authorization.bounty ||
+    !authorization.authorization ||
+    !authorization.signature
+  ) {
+    setErrorMessage(
+      "Prepare a valid bounty authorization first."
+    );
+
+    return;
+  }
+
+  try {
+    setTransactionPending(true);
+
+    const provider =
+      new ethers.BrowserProvider(
+        window.ethereum as unknown as
+          ethers.Eip1193Provider
+      );
+
+    const signer =
+      await provider.getSigner();
+
+    const signerAddress =
+      await signer.getAddress();
+
+    /*
+     * The MetaMask wallet sending ETH must
+     * be the authenticated company wallet.
+     */
+    if (
+      signerAddress.toLowerCase() !==
+      walletAddress.toLowerCase()
+    ) {
+      throw new Error(
+        "The selected MetaMask wallet does not match the authenticated company wallet."
+      );
+    }
+
+    /*
+     * Make sure MetaMask is connected to
+     * the blockchain where our escrow
+     * contract is deployed.
+     */
+    const network =
+      await provider.getNetwork();
+
+    const expectedChainId =
+      BigInt(
+        authorization.contract.chainId
+      );
+
+    if (
+      network.chainId !==
+      expectedChainId
+    ) {
+      throw new Error(
+        `MetaMask is on chain ${network.chainId}. Switch to chain ${expectedChainId}.`
+      );
+    }
+
+    const escrow =
+      new ethers.Contract(
+        authorization.contract.address,
+        ESCROW_ABI,
+        signer
+      );
+
+    /*
+     * This is BLOCKCHAIN TRANSACTION #1.
+     */
+    const transaction =
+      await escrow.createBounty(
+        authorization.bounty.metadataHash,
+
+        authorization.bounty.metadataCID,
+
+        BigInt(
+          authorization.bounty.startTime
+        ),
+
+        BigInt(
+          authorization.bounty.endTime
+        ),
+
+        {
+          user:
+            authorization.authorization.user,
+
+          role:
+            authorization.authorization.role,
+
+          organizationId:
+            authorization.authorization
+              .organizationId,
+
+          action:
+            authorization.authorization.action,
+
+          actionHash:
+            authorization.authorization
+              .actionHash,
+
+          nonce:
+            BigInt(
+              authorization.authorization
+                .nonce
+            ),
+
+          deadline:
+            BigInt(
+              authorization.authorization
+                .deadline
+            ),
+        },
+
+        authorization.signature,
+
+        {
+          /*
+           * Exact ETH amount that was included
+           * in actionHash by the backend.
+           */
+          value:
+            BigInt(
+              authorization.bounty
+                .escrowAmountWei
+            ),
+        }
+      );
+
+    setTransactionHash(
+      transaction.hash
+    );
+
+    /*
+     * Wait until the blockchain confirms
+     * the transaction.
+     */
+    const receipt =
+      await transaction.wait();
+
+    if (!receipt) {
+      throw new Error(
+        "The transaction receipt was not returned."
+      );
+    }
+
+    setTransactionConfirmed(true);
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "The bounty transaction failed.";
+
+    setErrorMessage(message);
+  } finally {
+    setTransactionPending(false);
+  }
+}
 
   if (loading) {
     return (
@@ -583,6 +773,27 @@ body: JSON.stringify({
                   Next: send the authorized
                   MetaMask transaction.
                 </strong>
+                <button
+  type="button"
+  className="bounty-authorize-button"
+  onClick={sendBountyTransaction}
+  disabled={
+    transactionPending ||
+    transactionConfirmed
+  }
+>
+  {transactionPending
+    ? "Waiting for blockchain confirmation..."
+    : transactionConfirmed
+      ? "Bounty created on-chain"
+      : "Create bounty & fund escrow"}
+</button>
+
+{transactionHash && (
+  <p>
+    Transaction: {transactionHash}
+  </p>
+)}
               </div>
             )}
         </form>
