@@ -794,7 +794,7 @@ body: JSON.stringify({
     Transaction: {transactionHash}
   </p>
 )}
-              </div>
+            </div>
             )}
         </form>
       </section>
