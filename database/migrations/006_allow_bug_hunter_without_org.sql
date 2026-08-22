@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE participants
+ALTER COLUMN organization_id DROP NOT NULL;
+
+COMMIT;
