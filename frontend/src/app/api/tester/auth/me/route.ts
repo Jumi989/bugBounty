@@ -93,7 +93,7 @@ export async function GET(): Promise<NextResponse> {
           wallet_address,
           participant_type,
           organization_id,
-          username,
+          display_name,
           email,
           active,
           verified
@@ -179,8 +179,8 @@ export async function GET(): Promise<NextResponse> {
         role: "tester",
         organizationId:
           participant.organization_id,
-        username:
-          participant.username,
+        display_name:
+          participant.display_name,
         email:
           participant.email,
         active:
