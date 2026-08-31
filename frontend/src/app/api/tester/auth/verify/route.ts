@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+
 import { ethers } from "ethers";
 import { SignJWT } from "jose";
 import { z } from "zod";
@@ -8,7 +9,7 @@ import { database } from "@/lib/database";
 
 export const runtime = "nodejs";
 
-const verifyRequestSchema = z.object({
+const verifySchema = z.object({
   challengeId: z.string().uuid(),
   walletAddress: z.string().trim().min(1),
   signature: z.string().trim().min(1),
@@ -21,13 +22,12 @@ type ChallengeRow = {
   challenge_message: string;
   expires_at: Date;
   used_at: Date | null;
-
   participant_type: number;
-  organization_id: string;
+  organization_id: string | null;
   active: boolean;
   verified: boolean;
-  display_name: string | null;
-  company_name: string | null;
+  username: string | null;
+  email: string | null;
 };
 
 function requireEnvironmentVariable(
@@ -47,25 +47,23 @@ function requireEnvironmentVariable(
 export async function POST(
   request: Request
 ): Promise<NextResponse> {
+  const client = await database.connect();
+
   try {
-    const requestBody: unknown =
+    const body: unknown =
       await request.json();
 
-    const validationResult =
-      verifyRequestSchema.safeParse(requestBody);
+    const validation =
+      verifySchema.safeParse(body);
 
-    if (!validationResult.success) {
+    if (!validation.success) {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid verification request.",
-          errors:
-            validationResult.error.flatten()
-              .fieldErrors,
+          message:
+            "Invalid verification request.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
@@ -73,7 +71,7 @@ export async function POST(
       challengeId,
       walletAddress: submittedWallet,
       signature,
-    } = validationResult.data;
+    } = validation.data;
 
     let walletAddress: string;
 
@@ -86,14 +84,14 @@ export async function POST(
           success: false,
           message: "Invalid wallet address.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
-    const challengeResult =
-      await database.query<ChallengeRow>(
+    await client.query("BEGIN");
+
+    const result =
+      await client.query<ChallengeRow>(
         `
         SELECT
           login_challenges.id,
@@ -102,49 +100,62 @@ export async function POST(
           login_challenges.challenge_message,
           login_challenges.expires_at,
           login_challenges.used_at,
-
           participants.participant_type,
           participants.organization_id,
           participants.active,
           participants.verified,
-          participants.display_name,
-          participants.company_name
+          participants.username,
+          participants.email
         FROM login_challenges
         INNER JOIN participants
           ON participants.id =
              login_challenges.participant_id
         WHERE login_challenges.id = $1
-        LIMIT 1;
+        FOR UPDATE;
         `,
         [challengeId]
       );
 
-    if (challengeResult.rowCount !== 1) {
+    if (result.rowCount !== 1) {
+      await client.query("ROLLBACK");
+
       return NextResponse.json(
         {
           success: false,
           message:
             "The login challenge was not found.",
         },
-        {
-          status: 404,
-        }
+        { status: 404 }
       );
     }
 
-    const challenge =
-      challengeResult.rows[0];
+    const challenge = result.rows[0];
+
+    if (
+      Number(challenge.participant_type) !== 2
+    ) {
+      await client.query("ROLLBACK");
+
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "This login challenge is not for a Bug Hunter.",
+        },
+        { status: 403 }
+      );
+    }
 
     if (challenge.used_at !== null) {
+      await client.query("ROLLBACK");
+
       return NextResponse.json(
         {
           success: false,
           message:
             "This login challenge has already been used.",
         },
-        {
-          status: 409,
-        }
+        { status: 409 }
       );
     }
 
@@ -152,15 +163,15 @@ export async function POST(
       new Date(challenge.expires_at).getTime() <=
       Date.now()
     ) {
+      await client.query("ROLLBACK");
+
       return NextResponse.json(
         {
           success: false,
           message:
             "This login challenge has expired.",
         },
-        {
-          status: 410,
-        }
+        { status: 410 }
       );
     }
 
@@ -168,67 +179,41 @@ export async function POST(
       challenge.wallet_address.toLowerCase() !==
       walletAddress.toLowerCase()
     ) {
+      await client.query("ROLLBACK");
+
       return NextResponse.json(
         {
           success: false,
           message:
             "The wallet does not match this challenge.",
         },
-        {
-          status: 403,
-        }
+        { status: 403 }
       );
     }
 
-const participantType =
-  Number(challenge.participant_type);
-
-
-const allowedRoles = [
-  1, // Company
-  2  // Bug Hunter
-];
-
-
-if (
-  !allowedRoles.includes(participantType)
-) {
-
-  return NextResponse.json(
-    {
-      success:false,
-      message:
-        "Invalid participant type.",
-    },
-    {
-      status:403,
-    }
-  );
-
-}
     if (!challenge.active) {
+      await client.query("ROLLBACK");
+
       return NextResponse.json(
         {
           success: false,
           message:
-            "This account is inactive.",
+            "This Bug Hunter account is inactive.",
         },
-        {
-          status: 403,
-        }
+        { status: 403 }
       );
     }
 
     if (!challenge.verified) {
+      await client.query("ROLLBACK");
+
       return NextResponse.json(
         {
           success: false,
           message:
-            "This account is not verified.",
+            "This Bug Hunter account is not verified.",
         },
-        {
-          status: 403,
-        }
+        { status: 403 }
       );
     }
 
@@ -241,15 +226,15 @@ if (
           signature
         );
     } catch {
+      await client.query("ROLLBACK");
+
       return NextResponse.json(
         {
           success: false,
           message:
             "The wallet signature is invalid.",
         },
-        {
-          status: 401,
-        }
+        { status: 401 }
       );
     }
 
@@ -257,24 +242,20 @@ if (
       recoveredAddress.toLowerCase() !==
       walletAddress.toLowerCase()
     ) {
+      await client.query("ROLLBACK");
+
       return NextResponse.json(
         {
           success: false,
           message:
             "The signature was created by a different wallet.",
         },
-        {
-          status: 401,
-        }
+        { status: 401 }
       );
     }
 
-    const client = await database.connect();
-
-    try {
-      await client.query("BEGIN");
-
-      const updateResult = await client.query(
+    const updateResult =
+      await client.query(
         `
         UPDATE login_challenges
         SET used_at = NOW()
@@ -286,58 +267,52 @@ if (
         [challengeId]
       );
 
-      if (updateResult.rowCount !== 1) {
-        throw new Error(
-          "The challenge could not be consumed."
-        );
-      }
-
-      await client.query("COMMIT");
-    } catch (error) {
+    if (updateResult.rowCount !== 1) {
       await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
+
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "The login challenge could not be consumed.",
+        },
+        { status: 409 }
+      );
     }
+
+    await client.query("COMMIT");
 
     const sessionSecret =
       requireEnvironmentVariable(
         "AUTH_SESSION_SECRET"
       );
 
-    const secretKey = new TextEncoder().encode(
-      sessionSecret
-    );
+    const secretKey =
+      new TextEncoder().encode(
+        sessionSecret
+      );
 
-    const sessionToken = await new SignJWT({
-      participantId:
-        challenge.participant_id,
-      walletAddress,
-      role:
-participantType === 1
-?
-"company"
-:
-"bug_hunter",
-
-organizationId:
-challenge.organization_id
-?
-challenge.organization_id
-:
-null,
-    })
-      .setProtectedHeader({
-        alg: "HS256",
+    const sessionToken =
+      await new SignJWT({
+        participantId:
+          challenge.participant_id,
+        walletAddress,
+        role: "tester",
+        organizationId:
+          challenge.organization_id,
       })
-      .setSubject(
-        challenge.participant_id.toString()
-      )
-      .setIssuedAt()
-      .setExpirationTime("2h")
-      .sign(secretKey);
+        .setProtectedHeader({
+          alg: "HS256",
+        })
+        .setSubject(
+          challenge.participant_id
+        )
+        .setIssuedAt()
+        .setExpirationTime("2h")
+        .sign(secretKey);
 
-    const cookieStore = await cookies();
+    const cookieStore =
+      await cookies();
 
     cookieStore.set(
       "bugbounty_session",
@@ -356,45 +331,40 @@ null,
     return NextResponse.json({
       success: true,
       message:
-participantType === 1
-?
-"Company login successful."
-:
-"Bug Hunter login successful.",
+        "Bug Hunter login successful.",
       participant: {
+        id: challenge.participant_id,
         walletAddress,
-        role:
-participantType === 1
-?
-"company"
-:
-"bug_hunter",
-        displayName:
-          challenge.company_name ??
-          challenge.display_name ??
-          "Verified Company",
+        role: "tester",
+        organizationId:
+          challenge.organization_id,
+        username:
+          challenge.username,
+        email:
+          challenge.email,
       },
     });
   } catch (error: unknown) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Unknown server error";
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // Ignore rollback failure.
+    }
 
     console.error(
-      "Wallet verification failed:",
-      message
+      "Tester wallet verification failed:",
+      error
     );
 
     return NextResponse.json(
       {
         success: false,
         message:
-          "The wallet login could not be verified.",
+          "The Bug Hunter login could not be verified.",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
+  } finally {
+    client.release();
   }
 }

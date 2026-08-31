@@ -602,6 +602,7 @@ Promise<void> {
 }
 
   return (
+    
     <main className="website">
       <header className="site-header">
         <a href="#" className="wordmark">
@@ -613,19 +614,26 @@ Promise<void> {
           </span>
         </a>
 
-        <nav className="desktop-navigation">
-          <a href="#company-access">Company access</a>
-          <a href="#process">How it works</a>
-          <a href="#technology">Technology</a>
-        </nav>
+<nav className="desktop-navigation">
 
-        <button
-          type="button"
-          className="header-button"
-          onClick={scrollToPortal}
-        >
-          Enter portal
-        </button>
+  <a href="#company-access">
+    Company access
+  </a>
+
+  <a href="/tester/sign-in">
+    Bug Hunter access
+  </a>
+
+  <a href="#process">
+    How it works
+  </a>
+
+  <a href="#technology">
+    Technology
+  </a>
+
+</nav>
+
       </header>
 
       <section className="hero-section">
@@ -696,11 +704,9 @@ Promise<void> {
           <div className="editorial-note">
             <span className="note-line" />
 
-            <p>
-              Connecting a wallet does not create a
-              blockchain transaction and does not cost
-              gas.
-            </p>
+           <p>
+  Connecting your wallet only verifies ownership. It does not send a transaction or use gas.
+</p>
           </div>
         </div>
 
@@ -822,9 +828,8 @@ Promise<void> {
       </strong>
 
       <p>
-        Sign the secure login challenge to
-        prove that you own this wallet.
-      </p>
+  Sign a secure message to verify that you own this wallet.
+</p>
     </div>
   </div>
 )}
