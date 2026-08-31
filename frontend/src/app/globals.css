@@ -4437,3 +4437,211 @@ flex-direction:column;
 
 
 }
+/* ============================
+   BUG HUNTER LOGIN POPUP
+============================ */
+
+
+.hunter-login-overlay {
+
+  position:fixed;
+
+  inset:0;
+
+  background:
+  rgba(20,20,15,.45);
+
+  backdrop-filter:blur(6px);
+
+  display:flex;
+
+  align-items:center;
+
+  justify-content:center;
+
+  z-index:2000;
+
+}
+
+
+
+.hunter-login-modal {
+
+
+  width:430px;
+
+  padding:45px;
+
+  background:#f7f4e9;
+
+  border:1px solid #171713;
+
+
+  box-shadow:
+  0 25px 70px rgba(0,0,0,.25);
+
+
+  position:relative;
+
+
+  text-align:center;
+
+
+}
+
+
+
+.modal-close {
+
+
+  position:absolute;
+
+  right:18px;
+
+  top:15px;
+
+
+  border:none;
+
+  background:none;
+
+
+  font-size:30px;
+
+  cursor:pointer;
+
+
+}
+
+
+
+.modal-label {
+
+
+  color:#666b3a;
+
+
+  font-size:11px;
+
+
+  letter-spacing:.25em;
+
+
+  font-family:Arial,sans-serif;
+
+
+}
+
+
+
+.hunter-login-modal h1 {
+
+
+  margin:25px 0;
+
+
+  font-family:Georgia,serif;
+
+
+  font-size:45px;
+
+
+  line-height:1;
+
+
+  font-weight:500;
+
+
+}
+
+
+
+.modal-description {
+
+
+  font-size:16px;
+
+
+  line-height:1.7;
+
+
+  color:#37372f;
+
+
+}
+
+
+
+.wallet-login-button {
+
+
+  width:100%;
+
+
+  margin-top:30px;
+
+
+  padding:16px;
+
+
+  background:#171713;
+
+
+  color:#f7f4e9;
+
+
+  border:none;
+
+
+  cursor:pointer;
+
+
+  letter-spacing:.15em;
+
+
+  font-size:12px;
+
+
+  font-weight:bold;
+
+
+}
+
+
+
+.wallet-login-button:hover {
+
+
+  background:#666b3a;
+
+
+}
+
+
+
+.login-switch {
+
+
+  margin-top:25px;
+
+
+  font-size:14px;
+
+
+}
+
+
+
+.login-switch a {
+
+
+  color:#666b3a;
+
+
+  font-weight:bold;
+
+
+  text-decoration:none;
+
+
+}

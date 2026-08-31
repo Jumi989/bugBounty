@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 type ConnectionStatus =
   | "idle"
@@ -8,6 +9,7 @@ type ConnectionStatus =
 
 type LoginStatus =
   | "idle"
+  | "connecting"
   | "requesting"
   | "signing"
   | "verifying"
@@ -75,6 +77,8 @@ function getNetworkName(chainId: string): string {
 }
 
 export default function Home() {
+const router = useRouter();
+
   const [walletAddress, setWalletAddress] =
     useState<string>("");
 
@@ -101,6 +105,18 @@ const [companyName, setCompanyName] =
 
 const isAuthenticated =
   loginStatus === "authenticated";
+
+const [hunterLoginOpen, setHunterLoginOpen] =
+  useState(false);
+
+const [hunterWallet, setHunterWallet] =
+  useState("");
+
+const [hunterStatus, setHunterStatus] =
+  useState<LoginStatus>("idle");
+
+const [hunterError, setHunterError] =
+  useState("");
 
   useEffect(() => {
   let cancelled = false;
@@ -445,6 +461,214 @@ const isAuthenticated =
   }
 }
 
+async function hunterLogin(): Promise<void> {
+
+  setHunterError("");
+
+  if (!window.ethereum) {
+
+    setHunterError(
+      "MetaMask was not detected."
+    );
+
+    return;
+  }
+
+
+  try {
+
+    setHunterStatus("connecting");
+
+
+    const accounts =
+      await window.ethereum.request({
+        method:
+          "eth_requestAccounts",
+      }) as string[];
+
+
+    if (!accounts.length) {
+
+      throw new Error(
+        "No wallet selected."
+      );
+
+    }
+
+
+    const wallet =
+      accounts[0];
+
+
+    setHunterWallet(wallet);
+
+
+    setHunterStatus(
+      "requesting"
+    );
+
+
+    const challengeResponse =
+      await fetch(
+        "/api/tester/auth/challenge",
+        {
+          method:"POST",
+
+          headers:{
+            "Content-Type":
+              "application/json",
+          },
+
+          body:JSON.stringify({
+            walletAddress:wallet,
+          }),
+        }
+      );
+
+
+    const challengeData =
+      await challengeResponse.json();
+
+
+    if(
+      !challengeResponse.ok ||
+      !challengeData.success ||
+      !challengeData.challenge
+    ){
+
+      throw new Error(
+        challengeData.message ??
+        "Challenge failed."
+      );
+
+    }
+
+
+
+    setHunterStatus(
+      "signing"
+    );
+
+
+
+    const signature =
+      await window.ethereum.request({
+
+        method:
+          "personal_sign",
+
+        params:[
+          challengeData.challenge.message,
+          wallet,
+        ],
+
+      });
+
+
+
+    setHunterStatus(
+      "verifying"
+    );
+
+
+
+    const verifyResponse =
+      await fetch(
+        "/api/tester/auth/verify",
+        {
+
+          method:"POST",
+
+          headers:{
+            "Content-Type":
+              "application/json",
+          },
+
+          credentials:"include",
+
+          body:JSON.stringify({
+
+            challengeId:
+              challengeData.challenge.id,
+
+            walletAddress:
+              wallet,
+
+            signature,
+
+          }),
+
+        }
+      );
+
+
+
+    const verifyData =
+      await verifyResponse.json();
+
+
+
+    if(
+      !verifyResponse.ok ||
+      !verifyData.success
+    ){
+
+      throw new Error(
+        verifyData.message ??
+        "Verification failed."
+      );
+
+    }
+
+
+
+    setHunterStatus(
+      "authenticated"
+    );
+
+
+    setHunterLoginOpen(false);
+
+
+    router.push(
+      "/tester/dashboard"
+    );
+
+
+  } catch(error:unknown){
+
+
+    const err =
+      error as {
+        code?:number;
+        message?:string;
+      };
+
+
+    if(err.code===4001){
+
+      setHunterError(
+        "Signature cancelled."
+      );
+
+    }else{
+
+      setHunterError(
+        err.message ??
+        "Bug Hunter login failed."
+      );
+
+    }
+
+
+    setHunterStatus(
+      "idle"
+    );
+
+  }
+
+}
+
 function getLoginButtonText(): string {
   switch (loginStatus) {
     case "requesting":
@@ -526,7 +750,7 @@ function getLoginButtonText(): string {
         method: "eth_chainId",
       })) as string;
 
-    setWalletAddress(accounts[0]);
+    setHunterWallet(accounts[0]);
     setNetworkName(
       getNetworkName(chainId)
     );
@@ -602,7 +826,6 @@ Promise<void> {
 }
 
   return (
-    
     <main className="website">
       <header className="site-header">
         <a href="#" className="wordmark">
@@ -620,9 +843,15 @@ Promise<void> {
     Company access
   </a>
 
-  <a href="/tester/sign-in">
-    Bug Hunter access
-  </a>
+  <a
+  href="#"
+  onClick={(e) => {
+    e.preventDefault();
+    setHunterLoginOpen(true);
+  }}
+>
+  Bug Hunter access
+</a>
 
   <a href="#process">
     How it works
@@ -982,6 +1211,125 @@ Promise<void> {
 
         <span>LOCAL DEVELOPMENT BUILD</span>
       </footer>
+{hunterLoginOpen && (
+
+<div className="hunter-login-overlay">
+
+
+<div className="hunter-login-modal">
+
+
+<button
+className="modal-close"
+onClick={() =>
+setHunterLoginOpen(false)
+}
+>
+×
+</button>
+
+
+
+<p className="modal-label">
+BUG HUNTER ACCESS
+</p>
+
+
+
+<h1>
+Welcome,
+<br/>
+Security Researcher
+</h1>
+
+
+
+<p className="modal-description">
+
+Connect your wallet and sign a secure
+message to verify ownership.
+
+</p>
+
+
+
+<button
+
+className="wallet-login-button"
+
+onClick={() =>
+void hunterLogin()
+}
+
+disabled={
+hunterStatus !== "idle"
+}
+
+>
+
+
+{
+hunterStatus==="connecting"
+
+? "Connecting wallet..."
+
+: hunterStatus==="requesting"
+
+? "Preparing secure login..."
+
+: hunterStatus==="signing"
+
+? "Waiting for signature..."
+
+: hunterStatus==="verifying"
+
+? "Verifying wallet..."
+
+: "CONNECT METAMASK"
+
+}
+
+
+</button>
+
+<div className="login-switch">
+
+        New to Bug Bounty?
+
+        <br />
+
+        <Link href="/tester/register">
+          Become a Bug Hunter →
+        </Link>
+
+      </div>
+
+
+
+{hunterError && (
+
+<div className="tester-auth-error">
+
+<strong>
+Sign-in could not continue
+</strong>
+
+<p>
+{hunterError}
+</p>
+
+</div>
+
+)}
+
+
+
+</div>
+
+
+</div>
+
+)}
     </main>
   );
 }
