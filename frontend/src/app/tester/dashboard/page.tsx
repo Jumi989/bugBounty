@@ -25,6 +25,18 @@ type SessionResponse = {
   participant?: Participant;
 };
 
+type Bounty = {
+  id: string;
+  bounty_id: string;
+  title: string;
+  description: string;
+  severity: string;
+  scope: string;
+  total_escrow_wei: string;
+  available_escrow_wei: string;
+  end_time: string;
+};
+
 
 
 export default function TesterDashboard() {
@@ -48,8 +60,8 @@ export default function TesterDashboard() {
   const [showWelcome, setShowWelcome] =
     useState(false);
 
-
-
+  const [bounties, setBounties] =
+    useState<Bounty[]>([]);
 
   async function connectWallet() {
 
@@ -75,8 +87,9 @@ export default function TesterDashboard() {
 
   }
 
-
-
+function formatEth(wei: string | number): string {
+  return (Number(wei) / 1e18).toFixed(2);
+}
 
 
   useEffect(() => {
@@ -190,6 +203,28 @@ export default function TesterDashboard() {
 
 
     }
+
+    async function loadBounties(){
+
+ const response =
+ await fetch(
+ "/api/tester/bounties",
+ {
+  credentials:"include",
+  cache:"no-store"
+ }
+ );
+
+ const data =
+ await response.json();
+
+ if(data.success){
+   setBounties(data.bounties);
+ }
+
+}
+
+loadBounties();
 
 
 
@@ -595,37 +630,125 @@ export default function TesterDashboard() {
 
 
 
-            <div className="empty-state">
+<div className="bounty-list">
+
+{
+bounties.length === 0 ? (
+
+<div className="empty-state">
+
+<div className="empty-state-icon">
++
+</div>
+
+<h3>
+No active programs yet
+</h3>
+
+<p>
+Active security programs will appear here.
+</p>
+
+</div>
+
+)
+
+:
+
+bounties.map((bounty)=> (
+
+<article
+key={bounty.id}
+className="bounty-card"
+
+onClick={() =>
+router.push(
+`/tester/bounties/${bounty.id}`
+)
+}
+
+>
 
 
-              <div className="empty-state-icon">
+<div className="bounty-header">
 
-                +
-
-              </div>
-
-
+<span className="bounty-tag">
+ACTIVE PROGRAM
+</span>
 
 
-              <h3>
+<span className="severity">
+{bounty.severity}
+</span>
 
-                No active programs yet
-
-              </h3>
+</div>
 
 
 
-
-              <p>
-
-                Security programs you can
-                participate in will appear here.
-
-              </p>
+<h3>
+{bounty.title}
+</h3>
 
 
+<p className="bounty-description">
 
-            </div>
+{bounty.description}
+
+</p>
+
+
+
+<div className="bounty-details">
+
+
+<div>
+
+<span>
+SCOPE
+</span>
+
+<p>
+{bounty.scope}
+</p>
+
+</div>
+
+
+
+<div>
+
+<span>
+REWARD
+</span>
+
+<p>
+{formatEth(bounty.total_escrow_wei)}
+ETH
+</p>
+
+</div>
+
+
+</div>
+
+
+
+<button
+className="view-program"
+>
+
+View Program →
+
+</button>
+
+
+</article>
+
+))
+
+}
+
+</div>
 
 
 
