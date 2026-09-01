@@ -839,7 +839,7 @@ Promise<void> {
 
 <nav className="desktop-navigation">
 
-  <a href="#company-access">
+  <a href="/company/dashboard">
     Company access
   </a>
 

@@ -1,5 +1,5 @@
 "use client";
-
+import SubmissionsPage from "@/components/company/SubmissionsPage";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -20,6 +20,20 @@ type CompanySession = {
     active: boolean;
     verified: boolean;
   };
+};
+
+type VulnerabilityReport = {
+  id: number;
+  title: string;
+  severity: string;
+  description: string;
+  steps_to_reproduce: string;
+  evidence_url: string | null;
+  status: string;
+  created_at: string;
+  tester_wallet: string;
+  bounty_id: number;
+  bounty_title: string;
 };
 
 function shortenAddress(address: string): string {
@@ -43,12 +57,64 @@ export default function CompanyDashboardPage() {
   const [loggingOut, setLoggingOut] =
     useState(false);
 
+  const [reports,setReports] =
+    useState<VulnerabilityReport[]>([]);
+
+    const [activePage,setActivePage] =
+useState<
+"dashboard" | "submissions"
+>("dashboard");
+
   /*
    * Protect the dashboard.
    *
    * When the page opens, verify the HTTP-only
    * session with the backend.
    */
+useEffect(()=>{
+
+async function loadReports(){
+
+try{
+
+const response =
+await fetch(
+"/api/company/reports",
+{
+credentials:"include",
+cache:"no-store"
+}
+);
+
+
+const data =
+await response.json();
+
+
+if(data.success){
+
+setReports(data.reports);
+
+}
+
+}
+catch(error){
+
+console.error(
+"Failed loading reports:",
+error
+);
+
+}
+
+}
+
+
+loadReports();
+
+
+},[]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -194,9 +260,13 @@ export default function CompanyDashboardPage() {
 
           <nav className="dashboard-navigation">
             <Link
-              href="/company/dashboard"
-              className="active"
-            >
+ href="/company/dashboard"
+ className={
+   activePage === "dashboard"
+   ? "active"
+   : ""
+ }
+>
               <span>01</span>
               Overview
             </Link>
@@ -217,12 +287,21 @@ export default function CompanyDashboardPage() {
 </Link>
 
             <button
-              type="button"
-              disabled
-            >
-              <span>04</span>
-              Submissions
-            </button>
+type="button"
+className={
+activePage === "submissions"
+?
+"active"
+:
+""
+}
+onClick={() =>
+setActivePage("submissions")
+}
+>
+<span>04</span>
+Submissions
+</button>
 
             <button
               type="button"
@@ -279,6 +358,9 @@ export default function CompanyDashboardPage() {
         </header>
 
         <div className="dashboard-content">
+          {
+activePage === "dashboard" && (
+<>
           <section className="dashboard-welcome">
             <div>
               <p className="dashboard-section-number">
@@ -391,11 +473,18 @@ export default function CompanyDashboardPage() {
                 </small>
               </div>
 
-              <strong>0</strong>
+              <strong>
+ {reports.length}
+</strong>
 
-              <p>
-                No vulnerability reports yet.
-              </p>
+<p>
+ {reports.length === 0
+ ?
+ "No vulnerability reports yet."
+ :
+ "Reports waiting for review."
+ }
+</p>
             </article>
 
             <article>
@@ -419,6 +508,108 @@ export default function CompanyDashboardPage() {
               </p>
             </article>
           </section>
+
+          <section className="dashboard-action-section">
+
+<div>
+
+<p className="dashboard-eyebrow">
+INCOMING REPORTS
+</p>
+
+
+<h2>
+Security researcher submissions
+</h2>
+
+
+<p>
+Review vulnerability reports submitted
+by Bug Hunters.
+</p>
+
+
+</div>
+
+
+
+<div className="dashboard-next-card">
+
+
+{
+reports.length === 0 ?
+
+(
+<p>
+No reports submitted yet.
+</p>
+)
+
+:
+
+reports.map(
+(report)=>(
+<article
+key={report.id}
+className="report-card"
+>
+
+
+<span>
+{report.severity}
+</span>
+
+
+<h3>
+{report.title}
+</h3>
+
+
+<p>
+Program:
+{report.bounty_title}
+</p>
+
+
+<p>
+Researcher:
+
+{report.tester_wallet.slice(0,10)}
+...
+</p>
+
+
+<p>
+Status:
+{report.status}
+</p>
+
+
+<button
+type="button"
+onClick={()=>
+router.push(
+`/company/reports/${report.id}`
+)
+}
+>
+Review Report →
+</button>
+
+
+</article>
+)
+
+)
+
+
+}
+
+
+</div>
+
+
+</section>
 
           <section className="dashboard-action-section">
             <div>
@@ -480,6 +671,14 @@ export default function CompanyDashboardPage() {
               {errorMessage}
             </div>
           )}
+
+        </>
+      )}
+
+      {activePage === "submissions" && (
+        <SubmissionsPage />
+      )}
+
         </div>
       </section>
     </main>

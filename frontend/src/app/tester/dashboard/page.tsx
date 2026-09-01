@@ -37,6 +37,12 @@ type Bounty = {
   end_time: string;
 };
 
+type Progress = {
+  submitted: number;
+  accepted: number;
+  rewards: string;
+};
+
 
 
 export default function TesterDashboard() {
@@ -61,7 +67,14 @@ export default function TesterDashboard() {
     useState(false);
 
   const [bounties, setBounties] =
-    useState<Bounty[]>([]);
+    useState<Bounty[]>([]);const [progress, setProgress] =
+    useState<Progress>({
+  submitted: 0,
+  accepted: 0,
+  rewards: "0"
+});
+
+
 
   async function connectWallet() {
 
@@ -224,15 +237,50 @@ function formatEth(wei: string | number): string {
 
 }
 
+async function loadProgress(){
+
+  try {
+
+    const response =
+    await fetch(
+      "/api/tester/progress",
+      {
+        credentials:"include",
+        cache:"no-store"
+      }
+    );
+
+
+    const data =
+    await response.json();
+
+
+    if(data.success){
+
+      setProgress({
+        submitted: data.submitted,
+        accepted: data.accepted,
+        rewards: data.rewards
+      });
+
+    }
+
+
+  } catch(error){
+
+    console.error(
+      "Progress loading failed:",
+      error
+    );
+
+  }
+
+}
+
+
+loadProgress();
 loadBounties();
-
-
-
-
-    loadSession();
-
-
-
+loadSession();
   }, [router]);
 
 
@@ -808,7 +856,7 @@ View Program →
 
                 <strong>
 
-                  0
+                 {progress.submitted}
 
                 </strong>
 
@@ -832,7 +880,7 @@ View Program →
 
                 <strong>
 
-                  0
+                  {progress.accepted}
 
                 </strong>
 
@@ -856,10 +904,9 @@ View Program →
 
 
                 <strong>
-
-                  0
-
-                </strong>
+ {formatEth(progress.rewards)}
+ <small> ETH</small>
+</strong>
 
 
               </div>
