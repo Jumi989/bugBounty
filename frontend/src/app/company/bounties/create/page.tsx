@@ -715,7 +715,7 @@ body: JSON.stringify({
 
                 <h3>
                   Backend permission
-                  issued.
+                  issued
                 </h3>
 
                 <p>
