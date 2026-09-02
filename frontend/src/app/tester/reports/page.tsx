@@ -118,7 +118,7 @@ const signer =
 const network =
   await provider.getNetwork();
 
-if (network.chainId !== 2026n) {
+if (network.chainId !== BigInt("2026")) {
   throw new Error(
     "Please switch MetaMask to Besu Reputation Network."
   );
@@ -179,9 +179,13 @@ const tx =
     BigInt(
       report.payout_nonce
     ),
-    BigInt(
+BigInt(
+  Math.floor(
+    new Date(
       report.payout_deadline
-    ),
+    ).getTime() / 1000
+  )
+),
     report.company_signature
   );
 
