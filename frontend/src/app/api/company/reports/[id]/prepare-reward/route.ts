@@ -404,12 +404,12 @@ export async function POST(
     // 13. DEADLINE
     // =====================================================
 
-    const deadline =
-      BigInt(
-        Math.floor(
-          Date.now() / 1000
-        ) + 15 * 60
-      );
+const deadline =
+  BigInt(
+    Math.floor(
+      Date.now() / 1000
+    ) + 24 * 60 * 60
+  );
 
     // =====================================================
     // 14. REWARD AUTHORIZATION

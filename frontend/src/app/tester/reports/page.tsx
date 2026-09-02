@@ -8,17 +8,12 @@ type Report = {
   title: string;
   severity: string;
   status: string;
-
-  bounty_id: number;
-
+  bounty_id: string;
+  tester_wallet: string;
   report_hash: string;
-
   approved_reward_wei: string | null;
-
   payout_nonce: string | null;
-
   payout_deadline: string | null;
-
   company_signature: string | null;
 };
 
@@ -115,6 +110,18 @@ const provider =
 const signer =
   await provider.getSigner();
 
+const connectedWallet =
+  await signer.getAddress();
+
+if (
+  connectedWallet.toLowerCase() !==
+  report.tester_wallet.toLowerCase()
+) {
+  throw new Error(
+    "Connect the same tester wallet that submitted this report."
+  );
+}
+
 const network =
   await provider.getNetwork();
 
@@ -180,11 +187,7 @@ const tx =
       report.payout_nonce
     ),
 BigInt(
-  Math.floor(
-    new Date(
-      report.payout_deadline
-    ).getTime() / 1000
-  )
+  report.payout_deadline
 ),
     report.company_signature
   );

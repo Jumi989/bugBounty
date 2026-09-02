@@ -81,36 +81,34 @@ export async function GET() {
      */
 
     const result = await database.query(
-      `
-      SELECT
-        vr.id,
-        vr.title,
-        vr.severity,
-        vr.status,
-
-        vr.bounty_db_id,
-
-        b.bounty_id AS bounty_id,
-
-        vr.report_hash,
-
-        vr.approved_reward_wei,
-
-        vr.payout_nonce,
-        vr.payout_deadline,
-        vr.company_signature
-
-      FROM vulnerability_reports vr
-
-      INNER JOIN bounties b
-        ON b.id = vr.bounty_db_id
-
-      WHERE vr.tester_id = $1
-
-      ORDER BY vr.id DESC
-      `,
-      [session.participantId]
-    );
+  `
+  SELECT
+    vr.id,
+    vr.bounty_db_id,
+    b.bounty_id AS bounty_id,
+    vr.tester_wallet,
+    vr.title,
+    vr.severity,
+    vr.status,
+    vr.report_hash,
+    vr.approved_reward_wei::text,
+    vr.payout_nonce::text,
+    CASE
+      WHEN vr.payout_deadline IS NULL THEN NULL
+      ELSE EXTRACT(EPOCH FROM vr.payout_deadline)::bigint::text
+    END AS payout_deadline,
+    vr.company_signature,
+    vr.claim_transaction_hash,
+    vr.created_at,
+    vr.updated_at
+  FROM vulnerability_reports vr
+  JOIN bounties b
+    ON b.id = vr.bounty_db_id
+  WHERE vr.tester_id = $1
+  ORDER BY vr.created_at DESC
+  `,
+  [session.participantId]
+);
 
     // =====================================================
     // 3. RETURN JSON

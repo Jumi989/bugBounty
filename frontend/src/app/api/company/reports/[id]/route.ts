@@ -128,6 +128,17 @@ export async function PATCH(
       );
     }
 
+    if (status !== "rejected") {
+  return NextResponse.json(
+    {
+      success: false,
+      message:
+        "This endpoint can only reject reports.",
+    },
+    { status: 400 }
+  );
+}
+
     const result = await database.query(
       `
       UPDATE vulnerability_reports
