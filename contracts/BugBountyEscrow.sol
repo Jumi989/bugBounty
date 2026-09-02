@@ -97,6 +97,16 @@ contract BugBountyEscrow is EIP712 {
 
     uint256 private reentrancyLock = 1;
 
+    bytes32 private constant REWARD_APPROVAL_TYPEHASH =
+    keccak256(
+        "RewardApproval(uint256 bountyId,bytes32 reportHash,address tester,uint256 rewardAmount,uint256 nonce,uint256 deadline)"
+    );
+
+mapping(uint256 => uint256) public payoutNonces;
+
+mapping(uint256 => mapping(bytes32 => bool))
+    public rewardClaimedForReportHash;
+
     mapping(uint256 => Bounty) private bounties;
     mapping(uint256 => Submission) private submissions;
 
@@ -114,6 +124,14 @@ contract BugBountyEscrow is EIP712 {
     error ReentrantCall();
     error ZeroAddress();
     error VerifierMustBeExternallyOwnedAccount();
+
+    error RewardApprovalExpired();
+error RewardNonceMismatch(
+    uint256 expected,
+    uint256 received
+);
+error RewardAlreadyClaimed();
+error InvalidRewardSigner();
 
     error InvalidBountyId(uint256 bountyId);
     error InvalidSubmissionId(uint256 submissionId);
@@ -205,6 +223,13 @@ contract BugBountyEscrow is EIP712 {
         address indexed tester,
         uint256 approvedReward
     );
+
+    event RewardClaimed(
+    uint256 indexed bountyId,
+    bytes32 indexed reportHash,
+    address indexed tester,
+    uint256 rewardAmount
+);
 
     event SubmissionRejected(
         uint256 indexed submissionId,
@@ -774,6 +799,130 @@ contract BugBountyEscrow is EIP712 {
             refundAmount
         );
     }
+
+    function claimReward(
+    uint256 bountyId,
+    bytes32 reportHash,
+    uint256 rewardAmount,
+    uint256 nonce,
+    uint256 deadline,
+    bytes calldata companySignature
+)
+    external
+    whenNotPaused
+    nonReentrant
+{
+    Bounty storage bounty =
+        _getBountyStorage(bountyId);
+
+    if (
+        bounty.status != BountyStatus.Open
+    ) {
+        revert BountyNotOpen();
+    }
+
+    if (
+        block.timestamp > deadline
+    ) {
+        revert RewardApprovalExpired();
+    }
+
+    if (
+        reportHash == bytes32(0)
+    ) {
+        revert InvalidHash();
+    }
+
+    if (
+        rewardAmount == 0
+    ) {
+        revert InvalidAmount();
+    }
+
+    if (
+        rewardClaimedForReportHash[
+            bountyId
+        ][reportHash]
+    ) {
+        revert RewardAlreadyClaimed();
+    }
+
+    uint256 expectedNonce =
+        payoutNonces[bountyId];
+
+    if (
+        nonce != expectedNonce
+    ) {
+        revert RewardNonceMismatch(
+            expectedNonce,
+            nonce
+        );
+    }
+
+    if (
+        rewardAmount >
+        bounty.availableEscrow
+    ) {
+        revert InsufficientEscrow();
+    }
+
+    bytes32 structHash =
+        keccak256(
+            abi.encode(
+                REWARD_APPROVAL_TYPEHASH,
+                bountyId,
+                reportHash,
+                msg.sender,
+                rewardAmount,
+                nonce,
+                deadline
+            )
+        );
+
+    bytes32 digest =
+        _hashTypedDataV4(
+            structHash
+        );
+
+    address recoveredSigner =
+        digest.recover(
+            companySignature
+        );
+
+    if (
+        recoveredSigner !=
+        bounty.company
+    ) {
+        revert InvalidRewardSigner();
+    }
+
+    payoutNonces[bountyId] =
+        expectedNonce + 1;
+
+    rewardClaimedForReportHash[
+        bountyId
+    ][reportHash] = true;
+
+    bounty.availableEscrow -=
+        rewardAmount;
+
+    (
+        bool success,
+    ) = payable(msg.sender).call{
+        value: rewardAmount
+    }("");
+
+    if (!success) {
+        revert TransferFailed();
+    }
+
+    emit RewardClaimed(
+        bountyId,
+        reportHash,
+        msg.sender,
+        rewardAmount
+    );
+}
 
     function withdraw() external nonReentrant {
         uint256 amount = pendingWithdrawals[msg.sender];

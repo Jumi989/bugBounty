@@ -1,5 +1,5 @@
 "use client";
-
+import { ethers } from "ethers";
 import {
   useState
 } from "react";
@@ -48,7 +48,7 @@ async function submitReport() {
   setMessage("");
 
   try {
-    // Get the currently authenticated Bug Hunter
+    // 1. Check Bug Hunter authentication
     const meResponse = await fetch("/api/tester/auth/me", {
       method: "GET",
       credentials: "include",
@@ -57,33 +57,20 @@ async function submitReport() {
 
     const meData = await meResponse.json();
 
-    console.log("TESTER AUTH RESPONSE:", meData);
-
-    if (!meResponse.ok || !meData.success || !meData.authenticated) {
-  console.error("TESTER AUTH FAILED:", {
-    status: meResponse.status,
-    response: meData,
-  });
-
-  throw new Error(
-    meData.message ||
-    `Tester authentication failed (HTTP ${meResponse.status})`
-  );
-}
-
-    const tester = meData.participant;
-
-    if (!tester?.id || !tester?.walletAddress) {
+    if (
+      !meResponse.ok ||
+      !meData.success ||
+      !meData.authenticated
+    ) {
       throw new Error(
-        "Authenticated Bug Hunter information is incomplete."
+        meData.message ||
+          "You are not authenticated as a Bug Hunter."
       );
     }
 
-    console.log("TESTER ID:", tester.id);
-    console.log("TESTER WALLET:", tester.walletAddress);
-    console.log("BOUNTY ID:", bountyId);
+    const tester = meData.participant;
 
-    // Submit the vulnerability report
+    // 2. Create the database report
     const response = await fetch("/api/tester/reports", {
       method: "POST",
       headers: {
@@ -92,38 +79,124 @@ async function submitReport() {
       credentials: "include",
       body: JSON.stringify({
         bountyId,
-        title: title.trim(),
+        title,
         severity,
-        description: description.trim(),
-        stepsToReproduce: steps.trim(),
-
-        // IMPORTANT:
-        // API expects evidenceUrl, not evidence
-        evidenceUrl: evidence.trim() || null,
-
-        // Required by /api/tester/reports
-        testerId: tester.id,
-        testerWallet: tester.walletAddress,
+        description,
+        stepsToReproduce: steps,
+        evidenceUrl: evidence || null,
       }),
     });
 
     const data = await response.json();
 
-    console.log("REPORT API RESPONSE:", data);
-
     if (!response.ok || !data.success) {
       throw new Error(
-        data.message || "Report submission failed."
+        data.message || "Report submission failed"
       );
     }
 
-    setMessage("Report submitted successfully.");
+    const report = data.report;
+
+    // 3. Connect Bug Hunter's MetaMask
+    if (!window.ethereum) {
+      throw new Error("Please install MetaMask.");
+    }
+
+    const provider = new ethers.BrowserProvider(
+      window.ethereum
+    );
+
+    const signer = await provider.getSigner();
+
+    const wallet = await signer.getAddress();
+
+    if (wallet.toLowerCase() !== tester.walletAddress.toLowerCase()) {
+      throw new Error(
+        "MetaMask wallet does not match your Bug Hunter account."
+      );
+    }
+
+    // 4. Get blockchain network
+    const network = await provider.getNetwork();
+
+    if (network.chainId !== 2026n) {
+      throw new Error(
+        "Please switch MetaMask to Besu Reputation Network."
+      );
+    }
+
+    setMessage("Report saved. Preparing blockchain submission...");
+
+    // 5. Get authorization from backend
+    const authResponse = await fetch(
+      "/api/tester/reports/submit-authorization",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          bountyId,
+          reportId: report.id,
+          reportHash: report.report_hash,
+        }),
+      }
+    );
+
+    const authData = await authResponse.json();
+
+    if (!authResponse.ok || !authData.success) {
+      throw new Error(
+        authData.message ||
+          "Failed to prepare blockchain authorization."
+      );
+    }
+
+    // 6. Contract
+    const CONTRACT_ADDRESS =
+      process.env.NEXT_PUBLIC_ESCROW_ADDRESS;
+
+    if (!CONTRACT_ADDRESS) {
+      throw new Error(
+        "NEXT_PUBLIC_ESCROW_ADDRESS is missing."
+      );
+    }
+
+    const contract = new ethers.Contract(
+      CONTRACT_ADDRESS,
+      [
+        "function submitBug(uint256,bytes32,string,uint256,(address,uint8,bytes32,uint8,bytes32,uint256,uint256),bytes) returns (uint256)"
+      ],
+      signer
+    );
+
+    // 7. Submit bug on-chain
+    const tx = await contract.submitBug(
+      bountyId,
+      report.report_hash,
+      authData.encryptedEvidenceCID,
+      authData.requestedRewardWei,
+      authData.authorization,
+      authData.signature
+    );
+
+    setMessage("Blockchain transaction submitted. Waiting...");
+
+    const receipt = await tx.wait();
+
+    console.log("SUBMIT BUG TX:", receipt.hash);
+
+    setMessage(
+      "Report submitted successfully on-chain."
+    );
 
     setTimeout(() => {
-      router.push("/tester/dashboard");
+      router.push("/tester/reports");
     }, 1500);
+
   } catch (error) {
-    console.error("REPORT SUBMISSION ERROR:", error);
+    console.error("SUBMIT REPORT ERROR:", error);
 
     setMessage(
       error instanceof Error

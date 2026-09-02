@@ -1,5 +1,5 @@
 "use client";
-
+import { ethers } from "ethers";
 import {useEffect,useState} from "react";
 import {useParams,useRouter} from "next/navigation";
 
@@ -55,43 +55,146 @@ async function approveReward() {
       return;
     }
 
-    const rewardWei = BigInt(
-      Math.floor(Number(amount) * 1e18)
-    ).toString();
+    if (!window.ethereum) {
+      throw new Error("MetaMask is required.");
+    }
 
-    console.log("APPROVING REWARD");
-    console.log("Report:", id);
-    console.log("Reward:", rewardWei);
-
-    const response = await fetch(
-      `/api/company/reports/${id}`,
+    /*
+     * 1. Ask backend to prepare
+     *    the exact reward authorization.
+     */
+    const prepareResponse = await fetch(
+      `/api/company/reports/${id}/prepare-reward`,
       {
-        method: "PATCH",
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify({
-          status: "accepted",
-          approved_reward_wei: rewardWei,
+          rewardAmountEth: amount,
         }),
       }
     );
 
-    const data = await response.json();
+    const prepareData =
+      await prepareResponse.json();
 
-    console.log("APPROVAL RESPONSE:", data);
-
-    if (!response.ok || !data.success) {
+    if (
+      !prepareResponse.ok ||
+      !prepareData.success
+    ) {
       throw new Error(
-        data.message || "Reward approval failed"
+        prepareData.message ||
+          "Could not prepare reward."
       );
     }
 
-    alert("Reward approved successfully");
+    /*
+     * 2. Connect MetaMask.
+     */
+    const provider =
+      new ethers.BrowserProvider(
+        window.ethereum
+      );
+
+    const signer =
+      await provider.getSigner();
+
+    const companyWallet =
+      await signer.getAddress();
+
+    /*
+     * 3. Make sure the company wallet
+     *    is the authenticated wallet.
+     */
+    if (
+      companyWallet.toLowerCase() !==
+      prepareData.company.walletAddress.toLowerCase()
+    ) {
+      throw new Error(
+        "Please connect the verified company wallet."
+      );
+    }
+
+    /*
+     * 4. Make sure MetaMask is on Besu.
+     */
+    const network =
+      await provider.getNetwork();
+
+    if (
+      network.chainId !== 2026n
+    ) {
+      throw new Error(
+        "Please switch MetaMask to Besu Reputation Network."
+      );
+    }
+
+    /*
+     * 5. EIP-712 signature.
+     *
+     * THIS DOES NOT SEND ETH.
+     * THIS DOES NOT CREATE A TRANSACTION.
+     */
+    const signature =
+      await signer.signTypedData(
+        prepareData.domain,
+        prepareData.types,
+        prepareData.value
+      );
+
+    console.log(
+      "REWARD SIGNATURE:",
+      signature
+    );
+
+    /*
+     * 6. Send signature to backend.
+     */
+    const acceptResponse =
+      await fetch(
+        `/api/company/reports/${id}/accept`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            rewardAmountWei:
+              prepareData.value.rewardAmount,
+            nonce:
+              prepareData.value.nonce,
+            deadline:
+              prepareData.value.deadline,
+            signature,
+          }),
+        }
+      );
+
+    const acceptData =
+      await acceptResponse.json();
+
+    if (
+      !acceptResponse.ok ||
+      !acceptData.success
+    ) {
+      throw new Error(
+        acceptData.message ||
+          "Reward approval failed."
+      );
+    }
+
+    alert(
+      "Reward approved. The Bug Hunter can now claim it."
+    );
 
     router.push(
       `/company/reports/${id}`
     );
+
   } catch (error) {
     console.error(
       "APPROVE REWARD ERROR:",
@@ -101,7 +204,7 @@ async function approveReward() {
     alert(
       error instanceof Error
         ? error.message
-        : "Failed to approve reward"
+        : "Failed to approve reward."
     );
   }
 }

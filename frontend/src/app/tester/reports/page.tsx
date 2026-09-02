@@ -1,13 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ethers } from "ethers";
 
 type Report = {
   id: number;
   title: string;
   severity: string;
   status: string;
+
+  bounty_id: number;
+
+  report_hash: string;
+
   approved_reward_wei: string | null;
+
+  payout_nonce: string | null;
+
+  payout_deadline: string | null;
+
+  company_signature: string | null;
 };
 
 function formatEth(wei: string | null) {
@@ -86,28 +98,101 @@ export default function TesterReportsPage() {
        * Replace CONTRACT_ADDRESS with
        * your deployed BugBountyEscrow address.
        */
-      const CONTRACT_ADDRESS =
-        process.env
-          .NEXT_PUBLIC_ESCROW_ADDRESS!;
+const CONTRACT_ADDRESS =
+  process.env.NEXT_PUBLIC_ESCROW_ADDRESS!;
 
-      /*
-       * withdraw() has no parameters
-       * in the current contract.
-       */
-      const withdrawData =
-        "0x3cc50b45";
+if (!CONTRACT_ADDRESS) {
+  throw new Error(
+    "NEXT_PUBLIC_ESCROW_ADDRESS is missing"
+  );
+}
 
-      const txHash =
-        (await window.ethereum.request({
-          method: "eth_sendTransaction",
-          params: [
-            {
-              from: accounts[0],
-              to: CONTRACT_ADDRESS,
-              data: withdrawData,
-            },
-          ],
-        })) as string;
+const provider =
+  new ethers.BrowserProvider(
+    window.ethereum
+  );
+
+const signer =
+  await provider.getSigner();
+
+const network =
+  await provider.getNetwork();
+
+if (network.chainId !== 2026n) {
+  throw new Error(
+    "Please switch MetaMask to Besu Reputation Network."
+  );
+}
+
+const contract =
+  new ethers.Contract(
+    CONTRACT_ADDRESS,
+    [
+      "function claimReward(uint256 bountyId,bytes32 reportHash,uint256 rewardAmount,uint256 nonce,uint256 deadline,bytes companySignature)"
+    ],
+    signer
+  );
+
+if (!report.bounty_id) {
+  throw new Error(
+    "Bounty ID is missing from report."
+  );
+}
+
+if (!report.report_hash) {
+  throw new Error(
+    "Report hash is missing."
+  );
+}
+
+if (!report.approved_reward_wei) {
+  throw new Error(
+    "Approved reward is missing."
+  );
+}
+
+if (!report.payout_nonce) {
+  throw new Error(
+    "Reward nonce is missing."
+  );
+}
+
+if (!report.payout_deadline) {
+  throw new Error(
+    "Reward deadline is missing."
+  );
+}
+
+if (!report.company_signature) {
+  throw new Error(
+    "Company reward approval signature is missing."
+  );
+}
+
+const tx =
+  await contract.claimReward(
+    BigInt(report.bounty_id),
+    report.report_hash,
+    BigInt(
+      report.approved_reward_wei
+    ),
+    BigInt(
+      report.payout_nonce
+    ),
+    BigInt(
+      report.payout_deadline
+    ),
+    report.company_signature
+  );
+
+console.log(
+  "TX2 CLAIM:",
+  tx.hash
+);
+
+await tx.wait();
+
+const txHash = tx.hash;
 
       const response =
         await fetch(

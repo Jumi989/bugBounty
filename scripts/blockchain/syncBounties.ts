@@ -90,6 +90,14 @@ async function saveBounty(
     blockNumber: number;
   }
 ): Promise<void> {
+  /*
+   * BountyStatus enum in the contract:
+   *
+   * 0 = None
+   * 1 = Open
+   * 2 = Closed
+   * 3 = Cancelled
+   */
   const openStatus = 1;
 
   const startDate = new Date(
@@ -100,15 +108,7 @@ async function saveBounty(
     Number(data.endTime) * 1_000
   );
 
-  /*
-   * ---------------------------------------------------------
-   * STEP 1: Save the blockchain bounty
-   * ---------------------------------------------------------
-   */
-
-  const bountyResult = await client.query<{
-    id: number;
-  }>(
+  await client.query(
     `
     INSERT INTO bounties (
       chain_id,
@@ -174,9 +174,7 @@ async function saveBounty(
       block_number =
         EXCLUDED.block_number,
 
-      updated_at = NOW()
-
-    RETURNING id;
+      updated_at = NOW();
     `,
     [
       data.chainId.toString(),
@@ -196,133 +194,6 @@ async function saveBounty(
       data.blockNumber,
     ]
   );
-
-  if (bountyResult.rows.length === 0) {
-    throw new Error(
-      `Could not save bounty ${data.bountyId}`
-    );
-  }
-
-  const databaseBountyId =
-    bountyResult.rows[0].id;
-
-  /*
-   * ---------------------------------------------------------
-   * STEP 2: Fetch metadata from Pinata
-   * ---------------------------------------------------------
-   */
-
-  const gateway =
-    process.env.PINATA_GATEWAY;
-
-  if (!gateway) {
-    throw new Error(
-      "PINATA_GATEWAY is missing from .env"
-    );
-  }
-
-  let cid = data.metadataCID.trim();
-
-  if (cid.startsWith("ipfs://")) {
-    cid = cid.replace("ipfs://", "");
-  }
-
-  const metadataUrl =
-    `https://${gateway}/ipfs/${cid}`;
-
-  console.log(
-    `Fetching bounty metadata: ${metadataUrl}`
-  );
-
-  const metadataResponse =
-    await fetch(metadataUrl);
-
-  if (!metadataResponse.ok) {
-    throw new Error(
-      `Failed to fetch Pinata metadata: ` +
-      `${metadataResponse.status} ` +
-      `${metadataResponse.statusText}`
-    );
-  }
-
-  const metadata =
-    await metadataResponse.json();
-
-  /*
-   * ---------------------------------------------------------
-   * STEP 3: Save metadata in bounty_metadata
-   * ---------------------------------------------------------
-   */
-
-  const existingMetadata =
-    await client.query<{
-      id: number;
-    }>(
-      `
-      SELECT id
-      FROM bounty_metadata
-      WHERE bounty_id = $1
-      LIMIT 1
-      `,
-      [databaseBountyId]
-    );
-
-  if (existingMetadata.rows.length > 0) {
-    await client.query(
-      `
-      UPDATE bounty_metadata
-      SET
-        title = $1,
-        description = $2,
-        severity = $3,
-        scope = $4
-      WHERE bounty_id = $5
-      `,
-      [
-        metadata.title ?? "",
-        metadata.description ?? "",
-        metadata.severity ?? null,
-        metadata.scope ?? "",
-        databaseBountyId,
-      ]
-    );
-
-    console.log(
-      `Bounty metadata updated: ` +
-      `databaseBountyId=${databaseBountyId}`
-    );
-  } else {
-    await client.query(
-      `
-      INSERT INTO bounty_metadata (
-        bounty_id,
-        title,
-        description,
-        severity,
-        scope
-      )
-      VALUES ($1, $2, $3, $4, $5)
-      `,
-      [
-        databaseBountyId,
-        metadata.title ?? "",
-        metadata.description ?? "",
-        metadata.severity ?? null,
-        metadata.scope ?? "",
-      ]
-    );
-
-    console.log(
-      `Bounty metadata saved: ` +
-      `databaseBountyId=${databaseBountyId}`
-    );
-  }
-
-  /*
-   * ---------------------------------------------------------
-   * SUCCESS
-   * ---------------------------------------------------------
-   */
 
   console.log(
     `Bounty synchronized: ` +
@@ -383,28 +254,255 @@ async function processBountyCreatedLog(
   const client = await pool.connect();
 
   try {
+    /*
+     * ========================================
+     * STEP 1
+     * Save the blockchain bounty FIRST
+     * ========================================
+     */
+
     await client.query("BEGIN");
 
-    await saveBounty(client, {
-      chainId,
-      bountyId,
-      companyAddress,
-      companyOrganizationId,
-      metadataHash,
-      metadataCID,
-      escrowAmount,
-      startTime,
-      endTime,
-      transactionHash:
-        log.transactionHash,
-      blockNumber:
+    const openStatus = 1;
+
+    const startDate = new Date(
+      Number(startTime) * 1000
+    );
+
+    const endDate = new Date(
+      Number(endTime) * 1000
+    );
+
+    const bountyResult = await client.query(
+      `
+      INSERT INTO bounties (
+        chain_id,
+        escrow_address,
+        bounty_id,
+        company_address,
+        company_organization_id,
+        metadata_hash,
+        metadata_cid,
+        total_escrow_wei,
+        available_escrow_wei,
+        start_time,
+        end_time,
+        refund_available_at,
+        status,
+        creation_tx_hash,
+        block_number
+      )
+      VALUES (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9, $10,
+        $11, $12, $13, $14, $15
+      )
+      ON CONFLICT (
+        chain_id,
+        escrow_address,
+        bounty_id
+      )
+      DO UPDATE SET
+        company_address = EXCLUDED.company_address,
+        company_organization_id = EXCLUDED.company_organization_id,
+        metadata_hash = EXCLUDED.metadata_hash,
+        metadata_cid = EXCLUDED.metadata_cid,
+        total_escrow_wei = EXCLUDED.total_escrow_wei,
+        available_escrow_wei = EXCLUDED.available_escrow_wei,
+        start_time = EXCLUDED.start_time,
+        end_time = EXCLUDED.end_time,
+        refund_available_at = EXCLUDED.refund_available_at,
+        status = EXCLUDED.status,
+        creation_tx_hash = EXCLUDED.creation_tx_hash,
+        block_number = EXCLUDED.block_number,
+        updated_at = NOW()
+      RETURNING id;
+      `,
+      [
+        chainId.toString(),
+        escrowAddress.toLowerCase(),
+        bountyId.toString(),
+        companyAddress.toLowerCase(),
+        companyOrganizationId.toLowerCase(),
+        metadataHash.toLowerCase(),
+        metadataCID,
+        escrowAmount.toString(),
+        escrowAmount.toString(),
+        startDate,
+        endDate,
+        endDate,
+        openStatus,
+        log.transactionHash.toLowerCase(),
         log.blockNumber,
-    });
+      ]
+    );
+
+    if (bountyResult.rows.length === 0) {
+      throw new Error(
+        `Could not save bounty ${bountyId}`
+      );
+    }
+
+    const databaseBountyId =
+      bountyResult.rows[0].id;
 
     await client.query("COMMIT");
+
+    console.log(
+      `Bounty saved to database: ` +
+      `databaseBountyId=${databaseBountyId}, ` +
+      `bountyId=${bountyId}`
+    );
+
+    /*
+     * ========================================
+     * STEP 2
+     * Fetch metadata separately
+     *
+     * If Pinata fails, the bounty remains
+     * safely stored in bounties.
+     * ========================================
+     */
+
+    try {
+      const gateway =
+        process.env.PINATA_GATEWAY;
+
+      if (!gateway) {
+        throw new Error(
+          "PINATA_GATEWAY is missing"
+        );
+      }
+
+      let cid = metadataCID.trim();
+
+      if (cid.startsWith("ipfs://")) {
+        cid = cid.replace("ipfs://", "");
+      }
+
+      const metadataUrl =
+        `https://${gateway}/ipfs/${cid}`;
+
+      console.log(
+        `Fetching bounty metadata: ${metadataUrl}`
+      );
+
+      const metadataResponse =
+        await fetch(metadataUrl);
+
+      if (!metadataResponse.ok) {
+        throw new Error(
+          `Pinata returned ${metadataResponse.status}`
+        );
+      }
+
+      const metadata =
+        await metadataResponse.json();
+
+      /*
+       * Save/update metadata.
+       */
+
+      const existingMetadata =
+        await client.query(
+          `
+          SELECT id
+          FROM bounty_metadata
+          WHERE bounty_id = $1
+          LIMIT 1
+          `,
+          [databaseBountyId]
+        );
+
+      if (existingMetadata.rows.length > 0) {
+        await client.query(
+          `
+          UPDATE bounty_metadata
+          SET
+            title = $1,
+            description = $2,
+            severity = $3,
+            scope = $4
+          WHERE bounty_id = $5
+          `,
+          [
+            metadata.title ?? "",
+            metadata.description ?? "",
+            metadata.severity ?? null,
+            metadata.scope ?? "",
+            databaseBountyId,
+          ]
+        );
+
+        console.log(
+          `Bounty metadata updated: ` +
+          `databaseBountyId=${databaseBountyId}`
+        );
+      } else {
+        await client.query(
+          `
+          INSERT INTO bounty_metadata (
+            bounty_id,
+            title,
+            description,
+            severity,
+            scope
+          )
+          VALUES ($1, $2, $3, $4, $5)
+          `,
+          [
+            databaseBountyId,
+            metadata.title ?? "",
+            metadata.description ?? "",
+            metadata.severity ?? null,
+            metadata.scope ?? "",
+          ]
+        );
+
+        console.log(
+          `Bounty metadata saved: ` +
+          `databaseBountyId=${databaseBountyId}`
+        );
+      }
+
+    } catch (metadataError) {
+      /*
+       * IMPORTANT:
+       * Do NOT rollback the bounty.
+       */
+
+      console.error(
+        "Metadata synchronization failed:",
+        metadataError
+      );
+
+      console.log(
+        `Bounty ${bountyId} remains saved in PostgreSQL.`
+      );
+    }
+
+    console.log(
+      `Bounty synchronized: ` +
+      `bountyId=${bountyId}, ` +
+      `company=${companyAddress}, ` +
+      `escrow=${ethers.formatEther(
+        escrowAmount
+      )} ETH, ` +
+      `tx=${log.transactionHash}`
+    );
+
   } catch (error) {
-    await client.query("ROLLBACK");
+    /*
+     * Rollback ONLY database errors from
+     * the bounty insert/update itself.
+     */
+
+    try {
+      await client.query("ROLLBACK");
+    } catch {}
+
     throw error;
+
   } finally {
     client.release();
   }
