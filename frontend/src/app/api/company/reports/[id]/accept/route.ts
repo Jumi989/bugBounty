@@ -21,7 +21,8 @@ const REWARD_APPROVAL_TYPES = {
     { name: "nonce", type: "uint256" },
     { name: "deadline", type: "uint256" },
   ],
-} as const;
+};
+
 
 async function getCompanySession() {
   const secret =
