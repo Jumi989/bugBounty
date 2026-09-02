@@ -476,11 +476,11 @@ loadSession();
               </a>
 
 
-              <a>
-
-                My Reports
-
-              </a>
+             <a
+  href="/tester/reports"
+>
+  My Reports
+</a>
 
 
 

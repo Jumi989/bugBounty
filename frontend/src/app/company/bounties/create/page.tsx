@@ -280,10 +280,10 @@ body: JSON.stringify({
   title,
   description,
   scope,
-  escrowAmountEth,
-  startTime,
-  endTime,
-}),
+  startTime: Number(startTime),
+  endTime: Number(endTime),
+  escrowAmountEth: String(escrowAmountEth)
+})
           }
         );
 

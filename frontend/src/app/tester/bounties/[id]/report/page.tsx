@@ -43,102 +43,96 @@ useState("");
 
 
 
-async function submitReport(){
+async function submitReport() {
+  setLoading(true);
+  setMessage("");
 
+  try {
+    // Get the currently authenticated Bug Hunter
+    const meResponse = await fetch("/api/tester/auth/me", {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    });
 
-setLoading(true);
+    const meData = await meResponse.json();
 
-setMessage("");
+    console.log("TESTER AUTH RESPONSE:", meData);
 
-try{
+    if (!meResponse.ok || !meData.success || !meData.authenticated) {
+  console.error("TESTER AUTH FAILED:", {
+    status: meResponse.status,
+    response: meData,
+  });
 
-
-const response =
-await fetch(
-"/api/tester/reports",
-{
-
-method:"POST",
-
-headers:{
-"Content-Type":"application/json"
-},
-
-credentials:"include",
-
-body:JSON.stringify({
-
-bountyId,
-
-title,
-
-severity,
-
-description,
-
-stepsToReproduce:steps,
-
-evidence
-
-})
-
-}
-);
-
-
-
-const data =
-await response.json();
-
-
-
-if(!response.ok){
-
-throw new Error(
-data.message ??
-"Report submission failed"
-);
-
+  throw new Error(
+    meData.message ||
+    `Tester authentication failed (HTTP ${meResponse.status})`
+  );
 }
 
+    const tester = meData.participant;
 
+    if (!tester?.id || !tester?.walletAddress) {
+      throw new Error(
+        "Authenticated Bug Hunter information is incomplete."
+      );
+    }
 
-setMessage(
-"Report submitted successfully"
-);
+    console.log("TESTER ID:", tester.id);
+    console.log("TESTER WALLET:", tester.walletAddress);
+    console.log("BOUNTY ID:", bountyId);
 
+    // Submit the vulnerability report
+    const response = await fetch("/api/tester/reports", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        bountyId,
+        title: title.trim(),
+        severity,
+        description: description.trim(),
+        stepsToReproduce: steps.trim(),
 
+        // IMPORTANT:
+        // API expects evidenceUrl, not evidence
+        evidenceUrl: evidence.trim() || null,
 
-setTimeout(()=>{
+        // Required by /api/tester/reports
+        testerId: tester.id,
+        testerWallet: tester.walletAddress,
+      }),
+    });
 
-router.push(
-"/tester/dashboard"
-);
+    const data = await response.json();
 
-},1500);
+    console.log("REPORT API RESPONSE:", data);
 
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message || "Report submission failed."
+      );
+    }
 
+    setMessage("Report submitted successfully.");
 
-}
-catch(error){
+    setTimeout(() => {
+      router.push("/tester/dashboard");
+    }, 1500);
+  } catch (error) {
+    console.error("REPORT SUBMISSION ERROR:", error);
 
-setMessage(
-error instanceof Error
-?
-error.message
-:
-"Something went wrong"
-);
-
-}
-
-finally{
-
-setLoading(false);
-
-}
-
-
+    setMessage(
+      error instanceof Error
+        ? error.message
+        : "Something went wrong."
+    );
+  } finally {
+    setLoading(false);
+  }
 }
 
 

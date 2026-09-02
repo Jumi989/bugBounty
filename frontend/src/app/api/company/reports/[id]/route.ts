@@ -106,43 +106,72 @@ export async function GET(
 export async function PATCH(
   request: Request,
   context: {
-    params: Promise<{
-      id:string;
-    }>;
+    params: Promise<{ id: string }>;
   }
 ) {
+  try {
+    const { id } = await context.params;
 
+    const body = await request.json();
 
-  const { id } = await context.params;
+    const status = body.status;
+    const approvedRewardWei =
+      body.approved_reward_wei ?? null;
 
+    if (!status) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Status is required",
+        },
+        { status: 400 }
+      );
+    }
 
-  const body =
-    await request.json();
+    const result = await database.query(
+      `
+      UPDATE vulnerability_reports
+      SET
+        status = $1,
+        approved_reward_wei = COALESCE($2, approved_reward_wei),
+        reviewed_at = NOW(),
+        updated_at = NOW()
+      WHERE id = $3
+      RETURNING *
+      `,
+      [
+        status,
+        approvedRewardWei,
+        id,
+      ]
+    );
 
+    if (result.rows.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "No report found",
+        },
+        { status: 404 }
+      );
+    }
 
+    return NextResponse.json({
+      success: true,
+      report: result.rows[0],
+    });
+  } catch (error) {
+    console.error(
+      "REPORT UPDATE ERROR:",
+      error
+    );
 
-  await database.query(
-    `
-    UPDATE vulnerability_reports
-
-    SET 
-    status=$1,
-    updated_at=NOW()
-
-    WHERE id=$2
-    `,
-    [
-      body.status,
-      id
-    ]
-  );
-
-
-
-  return NextResponse.json({
-
-    success:true
-
-  });
-
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Failed to update report",
+      },
+      { status: 500 }
+    );
+  }
 }

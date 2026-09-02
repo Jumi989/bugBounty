@@ -90,14 +90,6 @@ async function saveBounty(
     blockNumber: number;
   }
 ): Promise<void> {
-  /*
-   * BountyStatus enum in the contract:
-   *
-   * 0 = None
-   * 1 = Open
-   * 2 = Closed
-   * 3 = Cancelled
-   */
   const openStatus = 1;
 
   const startDate = new Date(
@@ -108,7 +100,15 @@ async function saveBounty(
     Number(data.endTime) * 1_000
   );
 
-  await client.query(
+  /*
+   * ---------------------------------------------------------
+   * STEP 1: Save the blockchain bounty
+   * ---------------------------------------------------------
+   */
+
+  const bountyResult = await client.query<{
+    id: number;
+  }>(
     `
     INSERT INTO bounties (
       chain_id,
@@ -174,7 +174,9 @@ async function saveBounty(
       block_number =
         EXCLUDED.block_number,
 
-      updated_at = NOW();
+      updated_at = NOW()
+
+    RETURNING id;
     `,
     [
       data.chainId.toString(),
@@ -194,6 +196,133 @@ async function saveBounty(
       data.blockNumber,
     ]
   );
+
+  if (bountyResult.rows.length === 0) {
+    throw new Error(
+      `Could not save bounty ${data.bountyId}`
+    );
+  }
+
+  const databaseBountyId =
+    bountyResult.rows[0].id;
+
+  /*
+   * ---------------------------------------------------------
+   * STEP 2: Fetch metadata from Pinata
+   * ---------------------------------------------------------
+   */
+
+  const gateway =
+    process.env.PINATA_GATEWAY;
+
+  if (!gateway) {
+    throw new Error(
+      "PINATA_GATEWAY is missing from .env"
+    );
+  }
+
+  let cid = data.metadataCID.trim();
+
+  if (cid.startsWith("ipfs://")) {
+    cid = cid.replace("ipfs://", "");
+  }
+
+  const metadataUrl =
+    `https://${gateway}/ipfs/${cid}`;
+
+  console.log(
+    `Fetching bounty metadata: ${metadataUrl}`
+  );
+
+  const metadataResponse =
+    await fetch(metadataUrl);
+
+  if (!metadataResponse.ok) {
+    throw new Error(
+      `Failed to fetch Pinata metadata: ` +
+      `${metadataResponse.status} ` +
+      `${metadataResponse.statusText}`
+    );
+  }
+
+  const metadata =
+    await metadataResponse.json();
+
+  /*
+   * ---------------------------------------------------------
+   * STEP 3: Save metadata in bounty_metadata
+   * ---------------------------------------------------------
+   */
+
+  const existingMetadata =
+    await client.query<{
+      id: number;
+    }>(
+      `
+      SELECT id
+      FROM bounty_metadata
+      WHERE bounty_id = $1
+      LIMIT 1
+      `,
+      [databaseBountyId]
+    );
+
+  if (existingMetadata.rows.length > 0) {
+    await client.query(
+      `
+      UPDATE bounty_metadata
+      SET
+        title = $1,
+        description = $2,
+        severity = $3,
+        scope = $4
+      WHERE bounty_id = $5
+      `,
+      [
+        metadata.title ?? "",
+        metadata.description ?? "",
+        metadata.severity ?? null,
+        metadata.scope ?? "",
+        databaseBountyId,
+      ]
+    );
+
+    console.log(
+      `Bounty metadata updated: ` +
+      `databaseBountyId=${databaseBountyId}`
+    );
+  } else {
+    await client.query(
+      `
+      INSERT INTO bounty_metadata (
+        bounty_id,
+        title,
+        description,
+        severity,
+        scope
+      )
+      VALUES ($1, $2, $3, $4, $5)
+      `,
+      [
+        databaseBountyId,
+        metadata.title ?? "",
+        metadata.description ?? "",
+        metadata.severity ?? null,
+        metadata.scope ?? "",
+      ]
+    );
+
+    console.log(
+      `Bounty metadata saved: ` +
+      `databaseBountyId=${databaseBountyId}`
+    );
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * SUCCESS
+   * ---------------------------------------------------------
+   */
 
   console.log(
     `Bounty synchronized: ` +

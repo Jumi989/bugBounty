@@ -266,7 +266,9 @@ View Evidence →
 <button
 className="accept-btn"
 onClick={()=>
-updateStatus("accepted")
+router.push(
+`/company/reports/${report.id}/reward`
+)
 }
 >
 Accept Report
