@@ -13,6 +13,31 @@ type SessionPayload = {
   organizationId?: string | null;
 };
 
+/**
+ * Convert PostgreSQL bigint values to strings
+ * so NextResponse.json() can serialize them.
+ */
+function serializeBigInts(value: unknown): unknown {
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(serializeBigInts);
+  }
+
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, val]) => [
+        key,
+        serializeBigInts(val),
+      ])
+    );
+  }
+
+  return value;
+}
+
 async function getAuthenticatedTester() {
   const sessionSecret = process.env.AUTH_SESSION_SECRET;
 
@@ -22,22 +47,29 @@ async function getAuthenticatedTester() {
 
   const cookieStore = await cookies();
 
-  const token = cookieStore.get("bugbounty_session")?.value;
+  const token =
+    cookieStore.get("bugbounty_session")?.value;
 
   if (!token) {
     return null;
   }
 
-  const secretKey = new TextEncoder().encode(sessionSecret);
+  const secretKey =
+    new TextEncoder().encode(sessionSecret);
 
   let payload: SessionPayload;
 
   try {
-    const verified = await jwtVerify(token, secretKey, {
-      algorithms: ["HS256"],
-    });
+    const verified = await jwtVerify(
+      token,
+      secretKey,
+      {
+        algorithms: ["HS256"],
+      }
+    );
 
-    payload = verified.payload as SessionPayload;
+    payload =
+      verified.payload as SessionPayload;
   } catch {
     return null;
   }
@@ -71,11 +103,16 @@ async function getAuthenticatedTester() {
 
   const participant = result.rows[0];
 
-  if (Number(participant.participant_type) !== 2) {
+  if (
+    Number(participant.participant_type) !== 2
+  ) {
     return null;
   }
 
-  if (!participant.active || !participant.verified) {
+  if (
+    !participant.active ||
+    !participant.verified
+  ) {
     return null;
   }
 
@@ -99,14 +136,16 @@ async function getAuthenticatedTester() {
 
 export async function GET() {
   try {
-    const tester = await getAuthenticatedTester();
+    const tester =
+      await getAuthenticatedTester();
 
     if (!tester) {
       return NextResponse.json(
         {
           success: false,
           authenticated: false,
-          message: "You are not authenticated as a Bug Hunter.",
+          message:
+            "You are not authenticated as a Bug Hunter.",
         },
         { status: 401 }
       );
@@ -141,17 +180,24 @@ export async function GET() {
       result.rows
     );
 
+    const reports =
+      serializeBigInts(result.rows);
+
     return NextResponse.json({
       success: true,
-      reports: result.rows,
+      reports,
     });
   } catch (error) {
-    console.error("REPORT LIST ERROR:", error);
+    console.error(
+      "REPORT LIST ERROR:",
+      error
+    );
 
     return NextResponse.json(
       {
         success: false,
-        message: "Failed to load vulnerability reports",
+        message:
+          "Failed to load vulnerability reports",
       },
       { status: 500 }
     );
@@ -163,16 +209,20 @@ export async function GET() {
    Create vulnerability report
    ========================================================= */
 
-export async function POST(request: Request) {
+export async function POST(
+  request: Request
+) {
   try {
-    const tester = await getAuthenticatedTester();
+    const tester =
+      await getAuthenticatedTester();
 
     if (!tester) {
       return NextResponse.json(
         {
           success: false,
           authenticated: false,
-          message: "You are not authenticated as a Bug Hunter.",
+          message:
+            "You are not authenticated as a Bug Hunter.",
         },
         { status: 401 }
       );
@@ -199,45 +249,45 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          message: "Missing required report information",
+          message:
+            "Missing required report information",
         },
         { status: 400 }
       );
     }
 
-    /*
-     * IMPORTANT:
-     *
-     * The tester URL uses bounty_metadata.id.
-     *
-     * Example:
-     *
-     * /tester/bounties/7/report
-     *
-     * Therefore:
-     *
-     * bounty_metadata.id = 7
-     *        ↓
-     * bounty_metadata.bounty_id
-     *        ↓
-     * bounties.id
-     *
-     * The resulting bounties.id is what must be stored
-     * in vulnerability_reports.bounty_db_id.
-     */
+    /* =====================================================
+       Find the actual database bounty ID
 
-    const bountyResult = await database.query(
-      `
-      SELECT
-        b.id AS bounty_db_id
-      FROM bounty_metadata m
-      JOIN bounties b
-        ON b.id = m.bounty_id
-      WHERE m.id = $1
-      LIMIT 1
-      `,
-      [bountyId]
-    );
+       URL:
+       /tester/bounties/7/report
+
+       bountyId = bounty_metadata.id
+
+       We map:
+
+       bounty_metadata.id
+              ↓
+       bounty_metadata.bounty_id
+              ↓
+       bounties.id
+              ↓
+       vulnerability_reports.bounty_db_id
+       ===================================================== */
+
+    const bountyResult =
+      await database.query(
+        `
+        SELECT
+          b.id AS bounty_db_id
+        FROM bounty_metadata m
+        JOIN bounties b
+          ON b.id = m.bounty_id
+        WHERE m.id = $1
+        LIMIT 1
+        `,
+        [bountyId]
+      );
 
     if (bountyResult.rowCount !== 1) {
       console.error(
@@ -250,7 +300,8 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          message: `Bounty ${bountyId} was not found in the database`,
+          message:
+            `Bounty ${bountyId} was not found in the database`,
         },
         { status: 404 }
       );
@@ -271,16 +322,19 @@ export async function POST(request: Request) {
        Create report hash
        ===================================================== */
 
-    const canonicalReport = JSON.stringify({
-      bountyId,
-      title,
-      severity,
-      description,
-      stepsToReproduce,
-      evidenceUrl: evidenceUrl || null,
-      testerId: tester.id,
-      testerWallet: tester.walletAddress,
-    });
+    const canonicalReport =
+      JSON.stringify({
+        bountyId,
+        title,
+        severity,
+        description,
+        stepsToReproduce,
+        evidenceUrl:
+          evidenceUrl || null,
+        testerId: tester.id,
+        testerWallet:
+          tester.walletAddress,
+      });
 
     const reportHash =
       "0x" +
@@ -293,57 +347,66 @@ export async function POST(request: Request) {
        Insert vulnerability report
        ===================================================== */
 
-    const result = await database.query(
-      `
-      INSERT INTO vulnerability_reports
-      (
-        bounty_db_id,
-        tester_id,
-        tester_wallet,
-        title,
-        severity,
-        description,
-        steps_to_reproduce,
-        evidence_url,
-        report_hash,
-        status
-      )
-      VALUES
-      (
-        $1,
-        $2,
-        $3,
-        $4,
-        $5,
-        $6,
-        $7,
-        $8,
-        $9,
-        'submitted'
-      )
-      RETURNING *
-      `,
-      [
-        bountyDbId,
-        tester.id,
-        tester.walletAddress,
-        title,
-        severity,
-        description,
-        stepsToReproduce,
-        evidenceUrl || null,
-        reportHash,
-      ]
-    );
+    const result =
+      await database.query(
+        `
+        INSERT INTO vulnerability_reports
+        (
+          bounty_db_id,
+          tester_id,
+          tester_wallet,
+          title,
+          severity,
+          description,
+          steps_to_reproduce,
+          evidence_url,
+          report_hash,
+          status
+        )
+        VALUES
+        (
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          'submitted'
+        )
+        RETURNING *
+        `,
+        [
+          bountyDbId,
+          tester.id,
+          tester.walletAddress,
+          title,
+          severity,
+          description,
+          stepsToReproduce,
+          evidenceUrl || null,
+          reportHash,
+        ]
+      );
 
     console.log(
       "REPORT CREATED:",
       result.rows[0]
     );
 
+    /* =====================================================
+       IMPORTANT:
+       Convert bigint values before returning JSON
+       ===================================================== */
+
+    const report =
+      serializeBigInts(result.rows[0]);
+
     return NextResponse.json({
       success: true,
-      report: result.rows[0],
+      report,
     });
   } catch (error) {
     console.error(
@@ -354,7 +417,8 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         success: false,
-        message: "Failed to create vulnerability report",
+        message:
+          "Failed to create vulnerability report",
       },
       { status: 500 }
     );
