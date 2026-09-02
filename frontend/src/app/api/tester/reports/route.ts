@@ -2,7 +2,6 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import crypto from "crypto";
-
 import { database } from "@/lib/database";
 
 export const runtime = "nodejs";
@@ -93,11 +92,9 @@ async function getAuthenticatedTester() {
   };
 }
 
-
 /* =========================================================
    GET
-   Load reports belonging to the currently authenticated
-   Bug Hunter.
+   Load reports belonging to authenticated Bug Hunter
    ========================================================= */
 
 export async function GET() {
@@ -117,23 +114,23 @@ export async function GET() {
 
     const result = await database.query(
       `
-SELECT
-  id,
-  bounty_db_id,
-  title,
-  severity,
-  status,
-  report_hash,
-  approved_reward_wei,
-  payout_nonce,
-  payout_deadline,
-  company_signature,
-  claim_transaction_hash,
-  created_at,
-  updated_at
-FROM vulnerability_reports
-WHERE tester_id = $1
-ORDER BY created_at DESC
+      SELECT
+        id,
+        bounty_db_id,
+        title,
+        severity,
+        status,
+        report_hash,
+        approved_reward_wei,
+        payout_nonce,
+        payout_deadline,
+        company_signature,
+        claim_transaction_hash,
+        created_at,
+        updated_at
+      FROM vulnerability_reports
+      WHERE tester_id = $1
+      ORDER BY created_at DESC
       `,
       [tester.id]
     );
@@ -161,14 +158,9 @@ ORDER BY created_at DESC
   }
 }
 
-
 /* =========================================================
    POST
-   Create a vulnerability report.
-
-   IMPORTANT:
-   testerId and testerWallet are NOT trusted from the browser.
-   They come from the authenticated session.
+   Create vulnerability report
    ========================================================= */
 
 export async function POST(request: Request) {
@@ -213,6 +205,72 @@ export async function POST(request: Request) {
       );
     }
 
+    /*
+     * IMPORTANT:
+     *
+     * The tester URL uses bounty_metadata.id.
+     *
+     * Example:
+     *
+     * /tester/bounties/7/report
+     *
+     * Therefore:
+     *
+     * bounty_metadata.id = 7
+     *        ↓
+     * bounty_metadata.bounty_id
+     *        ↓
+     * bounties.id
+     *
+     * The resulting bounties.id is what must be stored
+     * in vulnerability_reports.bounty_db_id.
+     */
+
+    const bountyResult = await database.query(
+      `
+      SELECT
+        b.id AS bounty_db_id
+      FROM bounty_metadata m
+      JOIN bounties b
+        ON b.id = m.bounty_id
+      WHERE m.id = $1
+      LIMIT 1
+      `,
+      [bountyId]
+    );
+
+    if (bountyResult.rowCount !== 1) {
+      console.error(
+        "BOUNTY LOOKUP FAILED:",
+        {
+          metadataId: bountyId,
+        }
+      );
+
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Bounty ${bountyId} was not found in the database`,
+        },
+        { status: 404 }
+      );
+    }
+
+    const bountyDbId =
+      bountyResult.rows[0].bounty_db_id;
+
+    console.log(
+      "BOUNTY MAPPING:",
+      {
+        metadataId: bountyId,
+        bountyDbId,
+      }
+    );
+
+    /* =====================================================
+       Create report hash
+       ===================================================== */
+
     const canonicalReport = JSON.stringify({
       bountyId,
       title,
@@ -230,6 +288,10 @@ export async function POST(request: Request) {
         .createHash("sha256")
         .update(canonicalReport)
         .digest("hex");
+
+    /* =====================================================
+       Insert vulnerability report
+       ===================================================== */
 
     const result = await database.query(
       `
@@ -262,7 +324,7 @@ export async function POST(request: Request) {
       RETURNING *
       `,
       [
-        bountyId,
+        bountyDbId,
         tester.id,
         tester.walletAddress,
         title,
@@ -284,7 +346,10 @@ export async function POST(request: Request) {
       report: result.rows[0],
     });
   } catch (error) {
-    console.error("REPORT CREATE ERROR:", error);
+    console.error(
+      "REPORT CREATE ERROR:",
+      error
+    );
 
     return NextResponse.json(
       {
