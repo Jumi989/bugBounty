@@ -209,20 +209,16 @@ export async function GET() {
    Create vulnerability report
    ========================================================= */
 
-export async function POST(
-  request: Request
-) {
+export async function POST(request: Request) {
   try {
-    const tester =
-      await getAuthenticatedTester();
+    const tester = await getAuthenticatedTester();
 
     if (!tester) {
       return NextResponse.json(
         {
           success: false,
           authenticated: false,
-          message:
-            "You are not authenticated as a Bug Hunter.",
+          message: "You are not authenticated as a Bug Hunter.",
         },
         { status: 401 }
       );
@@ -249,92 +245,114 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Missing required report information",
+          message: "Missing required report information",
         },
         { status: 400 }
       );
     }
 
-    /* =====================================================
-       Find the actual database bounty ID
+    /*
+     * URL:
+     *
+     * /tester/bounties/[id]/report
+     *
+     * [id] is bounty_metadata.id.
+     *
+     * We therefore resolve:
+     *
+     * bounty_metadata.id
+     *        ↓
+     * bounty_metadata.bounty_id
+     *        ↓
+     * bounties.id
+     *        ↓
+     * bounties.bounty_id
+     *
+     * The final bounties.bounty_id is the ON-CHAIN bounty ID.
+     */
 
-       URL:
-       /tester/bounties/7/report
-
-       bountyId = bounty_metadata.id
-
-       We map:
-
-       bounty_metadata.id
-              ↓
-       bounty_metadata.bounty_id
-              ↓
-       bounties.id
-              ↓
-       vulnerability_reports.bounty_db_id
-       ===================================================== */
-
-    const bountyResult =
-      await database.query(
-        `
-        SELECT
-          b.id AS bounty_db_id
-        FROM bounty_metadata m
-        JOIN bounties b
-          ON b.id = m.bounty_id
-        WHERE m.id = $1
-        LIMIT 1
-        `,
-        [bountyId]
-      );
+    const bountyResult = await database.query(
+      `
+      SELECT
+        b.id AS bounty_db_id,
+        b.bounty_id AS onchain_bounty_id,
+        b.company_address,
+        b.chain_id,
+        b.escrow_address,
+        b.start_time,
+        b.end_time
+      FROM bounty_metadata m
+      JOIN bounties b
+        ON b.id = m.bounty_id
+      WHERE m.id = $1
+      LIMIT 1
+      `,
+      [bountyId]
+    );
 
     if (bountyResult.rowCount !== 1) {
-      console.error(
-        "BOUNTY LOOKUP FAILED:",
-        {
-          metadataId: bountyId,
-        }
-      );
+      console.error("BOUNTY LOOKUP FAILED:", {
+        metadataId: bountyId,
+      });
 
       return NextResponse.json(
         {
           success: false,
-          message:
-            `Bounty ${bountyId} was not found in the database`,
+          message: `Bounty ${bountyId} was not found in the database`,
         },
         { status: 404 }
       );
     }
 
-    const bountyDbId =
-      bountyResult.rows[0].bounty_db_id;
+    const bounty = bountyResult.rows[0];
 
-    console.log(
-      "BOUNTY MAPPING:",
-      {
-        metadataId: bountyId,
-        bountyDbId,
-      }
+    const bountyDbId = String(
+      bounty.bounty_db_id
     );
 
-    /* =====================================================
-       Create report hash
-       ===================================================== */
+    const onchainBountyId = String(
+      bounty.onchain_bounty_id
+    );
 
-    const canonicalReport =
-      JSON.stringify({
-        bountyId,
-        title,
-        severity,
-        description,
-        stepsToReproduce,
-        evidenceUrl:
-          evidenceUrl || null,
-        testerId: tester.id,
-        testerWallet:
-          tester.walletAddress,
-      });
+    console.log("BOUNTY MAPPING:", {
+      metadataId: bountyId,
+      bountyDbId,
+      onchainBountyId,
+    });
+
+    /*
+     * Make sure tester is not the company.
+     */
+
+    if (
+      bounty.company_address &&
+      bounty.company_address.toLowerCase() ===
+        tester.walletAddress.toLowerCase()
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "A company cannot submit a report to its own bounty.",
+        },
+        { status: 403 }
+      );
+    }
+
+    /*
+     * Create private report hash.
+     */
+
+    const canonicalReport = JSON.stringify({
+      bountyId: onchainBountyId,
+      title,
+      severity,
+      description,
+      stepsToReproduce,
+      evidenceUrl: evidenceUrl || null,
+      testerId: tester.id,
+      testerWallet: tester.walletAddress,
+    });
 
     const reportHash =
       "0x" +
@@ -343,70 +361,69 @@ export async function POST(
         .update(canonicalReport)
         .digest("hex");
 
-    /* =====================================================
-       Insert vulnerability report
-       ===================================================== */
+    /*
+     * Store PostgreSQL report.
+     *
+     * IMPORTANT:
+     * bounty_db_id stores PostgreSQL bounties.id.
+     */
 
-    const result =
-      await database.query(
-        `
-        INSERT INTO vulnerability_reports
-        (
-          bounty_db_id,
-          tester_id,
-          tester_wallet,
-          title,
-          severity,
-          description,
-          steps_to_reproduce,
-          evidence_url,
-          report_hash,
-          status
-        )
-        VALUES
-        (
-          $1,
-          $2,
-          $3,
-          $4,
-          $5,
-          $6,
-          $7,
-          $8,
-          $9,
-          'submitted'
-        )
-        RETURNING *
-        `,
-        [
-          bountyDbId,
-          tester.id,
-          tester.walletAddress,
-          title,
-          severity,
-          description,
-          stepsToReproduce,
-          evidenceUrl || null,
-          reportHash,
-        ]
-      );
-
-    console.log(
-      "REPORT CREATED:",
-      result.rows[0]
+    const result = await database.query(
+      `
+      INSERT INTO vulnerability_reports
+      (
+        bounty_db_id,
+        tester_id,
+        tester_wallet,
+        title,
+        severity,
+        description,
+        steps_to_reproduce,
+        evidence_url,
+        report_hash,
+        status
+      )
+      VALUES
+      (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        $8,
+        $9,
+        'submitted'
+      )
+      RETURNING *
+      `,
+      [
+        bountyDbId,
+        tester.id,
+        tester.walletAddress,
+        title,
+        severity,
+        description,
+        stepsToReproduce,
+        evidenceUrl || null,
+        reportHash,
+      ]
     );
 
-    /* =====================================================
-       IMPORTANT:
-       Convert bigint values before returning JSON
-       ===================================================== */
-
-    const report =
-      serializeBigInts(result.rows[0]);
+    console.log("REPORT CREATED:", result.rows[0]);
 
     return NextResponse.json({
       success: true,
-      report,
+
+      report: {
+        ...result.rows[0],
+
+        /*
+         * Give frontend the actual blockchain ID.
+         */
+        onchain_bounty_id: onchainBountyId,
+      },
     });
   } catch (error) {
     console.error(
@@ -418,7 +435,9 @@ export async function POST(
       {
         success: false,
         message:
-          "Failed to create vulnerability report",
+          error instanceof Error
+            ? error.message
+            : "Failed to create vulnerability report",
       },
       { status: 500 }
     );
