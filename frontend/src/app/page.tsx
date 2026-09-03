@@ -429,12 +429,18 @@ const [hunterError, setHunterError] =
       );
     }
 
-    setCompanyName(
-      verifyData.participant?.displayName ??
-        "Verified Company"
-    );
+setCompanyName(
+  verifyData.participant?.displayName ??
+    "Verified Company"
+);
 
-    setLoginStatus("authenticated");
+setLoginStatus("authenticated");
+
+/*
+ * Login successful
+ * → send company to dashboard
+ */
+router.push("/company/dashboard");
   } catch (error: unknown) {
     /*
      * MetaMask normally uses error code 4001
@@ -825,6 +831,49 @@ Promise<void> {
   }
 }
 
+async function handleCompanyAccess(): Promise<void> {
+  try {
+    const response = await fetch("/api/auth/me", {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    });
+
+    const data = (await response.json()) as SessionResponse;
+
+    /*
+     * Already logged in
+     * → go directly to company dashboard
+     */
+    if (
+      response.ok &&
+      data.success &&
+      data.authenticated &&
+      data.participant
+    ) {
+      router.push("/company/dashboard");
+      return;
+    }
+
+    /*
+     * Not logged in
+     * → go to company sign-in section
+     */
+    router.push("/#company-access");
+  } catch (error) {
+    console.error(
+      "Could not check company session:",
+      error
+    );
+
+    /*
+     * If session check fails, safely send
+     * the user to the sign-in section.
+     */
+    router.push("/#company-access");
+  }
+}
+
   return (
     <main className="website">
       <header className="site-header">
@@ -839,9 +888,15 @@ Promise<void> {
 
 <nav className="desktop-navigation">
 
-  <a href="/company/dashboard">
-    Company access
-  </a>
+<a
+  href="#"
+  onClick={(e) => {
+    e.preventDefault();
+    void handleCompanyAccess();
+  }}
+>
+  Company access
+</a>
 
   <a
   href="#"

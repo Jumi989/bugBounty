@@ -508,25 +508,18 @@ export async function POST(request: Request) {
     // =====================================================
 
     const organizationId =
-      String(
-        tester.organization_id
+  tester.organization_id &&
+  ethers.isHexString(
+    String(tester.organization_id),
+    32
+  )
+    ? String(tester.organization_id)
+    : ethers.keccak256(
+        ethers.toUtf8Bytes(
+          "tester:" +
+            tester.wallet_address.toLowerCase()
+        )
       );
-
-    if (
-      !ethers.isHexString(
-        organizationId,
-        32
-      )
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Tester organization ID is not a valid bytes32 value.",
-        },
-        { status: 400 }
-      );
-    }
 
     // =====================================================
     // 12. REQUESTED REWARD
