@@ -51,6 +51,14 @@ export async function GET() {
       new TextEncoder().encode(secret)
     );
 
+const escrowAddress =
+  process.env.BUG_BOUNTY_ESCROW_ADDRESS;
+
+if (!escrowAddress) {
+  throw new Error(
+    "BUG_BOUNTY_ESCROW_ADDRESS is missing"
+  );
+}
 
     const result =
       await database.query(
@@ -76,12 +84,17 @@ export async function GET() {
 
         ON m.bounty_id = b.id
 
-        WHERE b.status = 1
+WHERE b.status = 1
+  AND b.chain_id = $1
+  AND LOWER(b.escrow_address) =
+      LOWER($2)
 
-        ORDER BY b.created_at DESC;
-
-        `
-
+ORDER BY b.created_at DESC;
+        `,
+        [
+           "2026",
+        escrowAddress
+        ]
       );
 
 

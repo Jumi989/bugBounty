@@ -510,108 +510,6 @@ activePage === "dashboard" && (
           </section>
 
           <section className="dashboard-action-section">
-
-<div>
-
-<p className="dashboard-eyebrow">
-INCOMING REPORTS
-</p>
-
-
-<h2>
-Security researcher submissions
-</h2>
-
-
-<p>
-Review vulnerability reports submitted
-by Bug Hunters.
-</p>
-
-
-</div>
-
-
-
-<div className="dashboard-next-card">
-
-
-{
-reports.length === 0 ?
-
-(
-<p>
-No reports submitted yet.
-</p>
-)
-
-:
-
-reports.map(
-(report)=>(
-<article
-key={report.id}
-className="report-card"
->
-
-
-<span>
-{report.severity}
-</span>
-
-
-<h3>
-{report.title}
-</h3>
-
-
-<p>
-Program:
-{report.bounty_title}
-</p>
-
-
-<p>
-Researcher:
-
-{report.tester_wallet.slice(0,10)}
-...
-</p>
-
-
-<p>
-Status:
-{report.status}
-</p>
-
-
-<button
-type="button"
-onClick={()=>
-router.push(
-`/company/reports/${report.id}`
-)
-}
->
-Review Report →
-</button>
-
-
-</article>
-)
-
-)
-
-
-}
-
-
-</div>
-
-
-</section>
-
-          <section className="dashboard-action-section">
             <div>
               <p className="dashboard-section-number">
                 02
@@ -654,12 +552,12 @@ Review Report →
                 and MetaMask.
               </p>
 
-              <button
-                type="button"
-                disabled
-              >
-                Create bounty — coming next
-              </button>
+<button
+  type="button"
+  onClick={() => router.push("/company/bounties/create")}
+>
+  Create bounty →
+</button>
             </div>
           </section>
 
