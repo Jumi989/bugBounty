@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
 type RegistrationStatus =
@@ -52,6 +53,8 @@ function shortenAddress(
 }
 
 export default function CompanyRegisterPage() {
+  const router = useRouter();
+
   const [walletAddress, setWalletAddress] =
     useState("");
 
@@ -357,11 +360,18 @@ export default function CompanyRegisterPage() {
         );
       }
 
-      setSuccessMessage(
-        verifyData.message
-      );
+/*
+ * Registration verification succeeded.
+ *
+ * Send the company directly to the dashboard.
+ */
+setSuccessMessage(
+  verifyData.message
+);
 
-      setStatus("completed");
+setStatus("completed");
+
+router.push("/company/dashboard");
     } catch (error: unknown) {
       const metamaskError =
         error as {

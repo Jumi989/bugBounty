@@ -1088,15 +1088,15 @@ async function handleCompanyAccess(): Promise<void> {
 
     <p>{errorMessage}</p>
 
-    {authErrorCode ===
-      "COMPANY_NOT_REGISTERED" && (
-      <Link
-        href="/company/register"
-        className="register-company-link"
-      >
-        Register company
-      </Link>
-    )}
+{(authErrorCode === "COMPANY_NOT_REGISTERED" ||
+  errorMessage.toLowerCase().includes("not registered as a company")) && (
+  <Link
+    href="/company/register"
+    className="register-company-link"
+  >
+    Register company →
+  </Link>
+)}
   </div>
 )}
 

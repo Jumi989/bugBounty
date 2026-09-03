@@ -271,15 +271,13 @@ loadReports();
               Overview
             </Link>
 
-            <button
-              type="button"
-              disabled
-            >
-              <span>02</span>
-              My Bounties
-              <small>Next</small>
-            </button>
-
+<Link
+  href="/company/bounties"
+  className="sidebar-link"
+>
+  <span>02</span>
+  My Bounties
+</Link>
            <Link href="/company/bounties/create">
   <span>03</span>
   Create Bounty

@@ -5194,3 +5194,486 @@ font-size:40px;
 }
 
 }
+
+/* =========================================
+   COMPANY BOUNTIES
+   ========================================= */
+
+.company-bounties-page {
+  min-height: 100vh;
+  padding: 80px 6vw 120px;
+  background: #f3f0e8;
+}
+
+.company-bounties-header {
+  margin-bottom: 70px;
+}
+
+.company-bounties-header .dashboard-eyebrow {
+  margin-bottom: 28px;
+}
+
+.company-bounties-header h1 {
+  margin: 0;
+  max-width: 900px;
+  font-size: clamp(70px, 8vw, 140px);
+  line-height: 0.82;
+  letter-spacing: -0.055em;
+  text-transform: uppercase;
+  font-weight: 900;
+}
+
+.company-bounties-header p {
+  margin-top: 30px;
+  max-width: 650px;
+  font-size: 20px;
+  line-height: 1.6;
+}
+
+
+/* =========================================
+   BOUNTY LIST
+   ========================================= */
+
+.company-bounty-list {
+  width: 100%;
+  border-top: 1px solid rgba(35, 35, 32, 0.2);
+}
+
+.company-bounty-card {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) 220px;
+  gap: 50px;
+
+  padding: 55px 0;
+
+  border-bottom: 1px solid rgba(35, 35, 32, 0.2);
+}
+
+.company-bounty-number {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.company-bounty-main {
+  min-width: 0;
+}
+
+.company-bounty-main h2 {
+  margin: 0 0 28px;
+
+  font-size: clamp(34px, 4vw, 64px);
+  line-height: 0.95;
+  letter-spacing: -0.035em;
+
+  overflow-wrap: anywhere;
+}
+
+.company-bounty-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 25px 45px;
+}
+
+.company-bounty-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.company-bounty-meta-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.company-bounty-meta-value {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.company-bounty-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  min-height: 150px;
+}
+
+.company-bounty-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.company-bounty-status::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #8c9770;
+}
+
+.company-bounty-created {
+  font-size: 15px;
+  opacity: 0.7;
+}
+
+
+/* =========================================
+   EMPTY / ERROR / LOADING
+   ========================================= */
+
+.company-bounties-message {
+  padding: 70px 0;
+
+  border-bottom: 1px solid rgba(35, 35, 32, 0.2);
+
+  font-size: 20px;
+}
+
+.company-bounties-error {
+  padding: 25px 30px;
+
+  background: #f0dfda;
+  border: 1px solid #d1aaa0;
+
+  font-size: 17px;
+}
+
+
+/* =========================================
+   RESPONSIVE
+   ========================================= */
+
+@media (max-width: 900px) {
+  .company-bounties-page {
+    padding: 60px 30px 90px;
+  }
+
+  .company-bounty-card {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+
+  .company-bounty-side {
+    align-items: flex-start;
+    min-height: auto;
+    gap: 20px;
+  }
+
+  .company-bounty-meta {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+@media (max-width: 600px) {
+  .company-bounties-page {
+    padding: 45px 20px 70px;
+  }
+
+  .company-bounties-header {
+    margin-bottom: 45px;
+  }
+
+  .company-bounties-header h1 {
+    font-size: 62px;
+  }
+
+  .company-bounty-card {
+    padding: 40px 0;
+  }
+
+  .company-bounty-main h2 {
+    font-size: 38px;
+  }
+}
+
+/* =========================================================
+   REWARD APPROVAL PAGE
+   ========================================================= */
+
+.reward-page {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 80px 48px 120px;
+  box-sizing: border-box;
+}
+
+/* Small top label */
+.reward-page .dashboard-eyebrow {
+  margin: 0 0 24px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+/* Main heading */
+.reward-page > h1 {
+  margin: 0 0 55px;
+  max-width: 850px;
+  font-size: clamp(52px, 7vw, 105px);
+  line-height: 0.88;
+  letter-spacing: -0.055em;
+  text-transform: uppercase;
+  font-weight: 900;
+}
+
+/* =========================================================
+   REWARD CARD
+   ========================================================= */
+
+.reward-card {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+
+  padding: 55px 60px 60px;
+
+  border: 1px solid rgba(35, 34, 31, 0.22);
+
+  background:
+    linear-gradient(
+      rgba(255, 255, 255, 0.16),
+      rgba(255, 255, 255, 0.16)
+    ),
+    #f3f0e8;
+
+  box-sizing: border-box;
+}
+
+/* Top accent line */
+.reward-card::before {
+  content: "";
+  display: block;
+
+  width: 70px;
+  height: 5px;
+
+  margin-bottom: 38px;
+
+  background: #8f9c78;
+}
+
+/* Report title */
+.reward-card h2 {
+  margin: 0 0 42px;
+
+  font-size: clamp(34px, 4vw, 62px);
+  line-height: 0.95;
+  letter-spacing: -0.045em;
+  text-transform: uppercase;
+
+  font-weight: 900;
+}
+
+/* Information rows */
+.reward-card p {
+  margin: 0;
+
+  padding: 18px 0;
+
+  border-top: 1px solid
+    rgba(35, 34, 31, 0.16);
+
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+/* Last information row */
+.reward-card p:last-of-type {
+  border-bottom: 1px solid
+    rgba(35, 34, 31, 0.16);
+}
+
+/* Bold values */
+.reward-card strong {
+  font-weight: 700;
+}
+
+/* =========================================================
+   REWARD INPUT
+   ========================================================= */
+
+.reward-card label {
+  display: block;
+
+  margin-top: 45px;
+  margin-bottom: 12px;
+
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.reward-card input {
+  display: block;
+
+  width: 100%;
+  max-width: 430px;
+
+  padding: 18px 20px;
+
+  border: 1px solid
+    rgba(35, 34, 31, 0.35);
+
+  border-radius: 0;
+
+  background: #faf8f1;
+
+  color: #252421;
+
+  font-family: inherit;
+  font-size: 22px;
+  font-weight: 600;
+
+  outline: none;
+
+  box-sizing: border-box;
+
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.reward-card input:focus {
+  border-color: #7f8c68;
+  background: #ffffff;
+}
+
+.reward-card input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Remove number input arrows */
+.reward-card input::-webkit-inner-spin-button,
+.reward-card input::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.reward-card input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+/* =========================================================
+   APPROVE BUTTON
+   ========================================================= */
+
+.reward-card button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 250px;
+
+  margin-top: 32px;
+  padding: 20px 30px;
+
+  border: 1px solid #292825;
+  border-radius: 0;
+
+  background: #292825;
+  color: #f4f1e8;
+
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.reward-card button:hover:not(:disabled) {
+  background: #8f9c78;
+  border-color: #8f9c78;
+  color: #1f211c;
+
+  transform: translateY(-2px);
+}
+
+.reward-card button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* =========================================================
+   STATUS MESSAGE
+   ========================================================= */
+
+.reward-card > p:last-child {
+  margin-top: 30px;
+
+  padding: 20px;
+
+  border: 1px solid
+    rgba(143, 156, 120, 0.5);
+
+  background: #e5eadc;
+
+  color: #3c4434;
+
+  font-size: 15px;
+}
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 768px) {
+  .reward-page {
+    padding: 55px 22px 80px;
+  }
+
+  .reward-page > h1 {
+    margin-bottom: 40px;
+
+    font-size: 52px;
+  }
+
+  .reward-card {
+    padding: 38px 25px 42px;
+  }
+
+  .reward-card h2 {
+    margin-bottom: 30px;
+    font-size: 38px;
+  }
+
+  .reward-card p {
+    font-size: 15px;
+  }
+
+  .reward-card input {
+    max-width: none;
+    font-size: 19px;
+  }
+
+  .reward-card button {
+    width: 100%;
+    min-width: 0;
+  }
+}
